@@ -207,7 +207,7 @@ Set up Python environment with uv:
 # Initialise project (creates pyproject.toml)
 uv init
 
-# it is currently unclear which of these steps is needed. 
+# it is currently unclear which of these two steps is needed. 
 uv venv --python 3.12
 uv python pin 3.12
 
@@ -215,10 +215,8 @@ uv python pin 3.12
 source .venv/bin/activate
 
 # Install packages (records in pyproject.toml automatically)
-uv add 
+uv add pandas pyarrow
 ```
-
-
 
 ---
 
