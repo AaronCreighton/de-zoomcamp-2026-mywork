@@ -50,6 +50,13 @@ wsl --install
 
 Restart your machine when prompted. Ubuntu will be available as an app from the Start menu.
 
+```powershell
+# check install
+
+wsl --list --verbose
+```
+
+
 Update Ubuntu on first launch:
 
 ```bash
@@ -58,24 +65,7 @@ sudo apt update && sudo apt upgrade -y
 
 ---
 
-## Step 2: VS Code (Windows) + WSL Extension
-
-VS Code runs on Windows but connects seamlessly into Ubuntu via the WSL extension.
-
-1. Download and install VS Code from [code.visualstudio.com](https://code.visualstudio.com/)
-2. Open VS Code → Extensions (`Ctrl+Shift+X`) → search **WSL** → install the Microsoft WSL extension
-
-To open any project in VS Code from Ubuntu:
-
-```bash
-code .
-```
-
-Confirm **"WSL: Ubuntu"** appears in the bottom left corner of VS Code.
-
----
-
-## Step 3: Docker Engine (inside Ubuntu)
+## Step 2: Docker Engine (inside Ubuntu)
 
 Docker Engine is installed directly inside Ubuntu — not Docker Desktop. This avoids licensing overhead and more closely matches production environments.
 
@@ -105,6 +95,31 @@ Close and reopen your Ubuntu terminal, then verify:
 docker run hello-world
 docker compose version
 ```
+
+---
+
+## Step 3: VS Code (Windows) + WSL Extension
+
+VS Code runs on Windows but connects seamlessly into Ubuntu via the WSL extension.
+
+1. Download and install VS Code from [code.visualstudio.com](https://code.visualstudio.com/)
+2. Open VS Code → Extensions (`Ctrl+Shift+X`) → search **WSL** → install the Microsoft WSL extension
+
+To open any project in VS Code from Ubuntu:
+
+```bash
+code .
+```
+
+Confirm **"WSL: Ubuntu"** appears in the bottom left corner of VS Code.
+
+
+### hide the directory in vs code
+
+```bash
+echo 'PS1=">"' > ~/.bashrc
+```
+
 
 ---
 
@@ -192,55 +207,20 @@ Set up Python environment with uv:
 # Initialise project (creates pyproject.toml)
 uv init
 
-# Pin Python version
-uv python install 3.11
-uv python pin 3.11
+# it is currently unclear which of these steps is needed. 
+uv venv --python 3.12
+uv python pin 3.12
 
 # Activate environment
 source .venv/bin/activate
 
 # Install packages (records in pyproject.toml automatically)
-uv add pandas sqlalchemy psycopg2-binary
+uv add 
 ```
 
----
 
-## Step 7: .gitignore
-
-Your `.gitignore` should cover Python, Terraform, GCP credentials and Docker env files. Critical entries:
-
-```gitignore
-# Python
-.venv/
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-
-# Terraform
-*.tfstate
-*.tfstate.backup
-.terraform/
-*.tfvars
-
-# GCP — never commit credentials
-*.json
-service-account*.json
-credentials*.json
-
-# Environment variables
-.env
-
-# OS
-.DS_Store
-Thumbs.db
-```
 
 ---
-
-## Step 9: Vs Code extensions
-
- - check it has the wsl extension.
- - inside vs code, add vs code extension to ubuntu envrionment.
 
 ## Still To Install
 
