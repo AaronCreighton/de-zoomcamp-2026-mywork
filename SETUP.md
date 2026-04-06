@@ -218,6 +218,26 @@ source .venv/bin/activate
 uv add pandas pyarrow
 ```
 
+## Install PostGreSQL
+https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/01-docker-terraform/docker-sql/04-postgres-docker.md
+
+```bash
+docker run -it --rm \
+  -e POSTGRES_USER="root" \
+  -e POSTGRES_PASSWORD="root" \
+  -e POSTGRES_DB="ny_taxi" \
+  -v ny_taxi_postgres_data:/var/lib/postgresql \
+  -p 5432:5432 \
+  postgres:18
+```
+
+in order to use pgcli, to acess the db. I needed to install libpq. This needs sudo password from password manager, under ubuntu. 
+
+```bash
+sudo apt install libpq-dev -y
+
+```
+
 ---
 
 ## Still To Install
