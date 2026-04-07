@@ -17,7 +17,8 @@ RUN uv sync --locked --no-dev --no-cache
 #  uv sync --no-dev
 
 # Copy project files
-COPY pipeline.py  pipeline.py
+#COPY pipeline.py  pipeline.py
+COPY ingest_data.py ingest_data.py
 
 # Set entry point
 ENTRYPOINT ["python", "pipeline.py"]

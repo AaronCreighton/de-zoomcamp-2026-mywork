@@ -299,6 +299,14 @@ mv Notebook.py ingest_data.py
 
 ```
 
+## Add to docker
+
+add ingrest_data to dockerfile & then build it. 
+
+```bash
+docker build -t taxi_ingrest:v001 .
+```
+
 
 ## Still To Install
 
