@@ -219,7 +219,8 @@ uv add pandas pyarrow
 ```
 
 ## Install PostGreSQL
-https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/01-docker-terraform/docker-sql/04-postgres-docker.md
+
+see for info on two methods: https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/01-docker-terraform/docker-sql/04-postgres-docker.md
 
 ```bash
 docker run -it --rm \
@@ -231,14 +232,73 @@ docker run -it --rm \
   postgres:18
 ```
 
+
+
+---
+
+
+## Connect to PostSQL
+
 in order to use pgcli, to acess the db. I needed to install libpq. This needs sudo password from password manager, under ubuntu. 
 
 ```bash
+uv add --dev pgcli
+
 sudo apt install libpq-dev -y
+
+uv run pgcli -h localhost -p 5432 -u root -d ny_taxi
+
+#validate by running some sql comands. 
 
 ```
 
----
+* `uv run` executes a command in the context of the virtual environment
+* `-h` is the host. Since we're running locally we can use `localhost`.
+* `-p` is the port.
+* `-u` is the username.
+* `-d` is the database name.
+* The password is not provided; it will be requested after running the command.
+
+When prompted, enter the password: `root`
+
+
+
+## install jupyter
+
+``` 
+uv add --dev jupyter
+
+ub run jupyter notebook
+```
+
+## Connect to PostgreSQL in Python/Jupyter
+
+inside directory in bash:
+``` 
+uv add sqlalchemy "psycopg[binary,pool]"
+``` 
+
+or inside Jupyter
+
+``` 
+!uv add sqlalchemy "psycopg[binary,pool]"
+``` 
+
+
+inside jupyter
+```jupyter
+from sqlalchemy import create_engine
+engine = create_engine('postgresql+psycopg://root:root@localhost:5432/ny_taxi')
+``` 
+
+## Convert Jupyter to script
+
+```bash
+uv run jupyter nbconvert --to=script Notebook.ipynb
+mv Notebook.py ingest_data.py
+
+```
+
 
 ## Still To Install
 
