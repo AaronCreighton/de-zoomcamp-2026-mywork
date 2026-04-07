@@ -299,13 +299,47 @@ mv Notebook.py ingest_data.py
 
 ```
 
+## create docker network
+
+
+```bash
+docker network create pg-network
+
+
+docker run -it --rm \
+  -e POSTGRES_USER="root" \
+  -e POSTGRES_PASSWORD="root" \
+  -e POSTGRES_DB="ny_taxi" \
+  -v ny_taxi_postgres_data:/var/lib/postgresql \
+  -p 5432:5432 \
+  --network=pg-network \
+  --name pgdatabase \
+  postgres:18
+```
+
+
+
+
 ## Add to docker
 
 add ingrest_data to dockerfile & then build it. 
 
 ```bash
-docker build -t taxi_ingrest:v001 .
+
+docker build -t taxi_ingest:v001 .
+
+docker run -it --rm \
+  --network=pg-network \
+  taxi_ingest:v001 \
+  --pg-user=root \
+  --pg-pass=root \
+  --pg-host=pgdatabase \
+  --pg-port=5432 \
+  --pg-db=ny_taxi \
+  --target-table=yellow_taxi_trips
 ```
+
+
 
 
 ## Still To Install
