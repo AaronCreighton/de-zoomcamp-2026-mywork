@@ -217,8 +217,11 @@ source .venv/bin/activate
 # Install packages (records in pyproject.toml automatically)
 uv add pandas pyarrow
 ```
+---
 
-## Install PostGreSQL
+# CSV to PostgreSQL Pipeline Setup
+
+## 1. Install PostGreSQL
 
 see for info on two methods: https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/01-docker-terraform/docker-sql/04-postgres-docker.md
 
@@ -232,12 +235,7 @@ docker run -it --rm \
   postgres:18
 ```
 
-
-
----
-
-
-## Connect to PostSQL
+## 2. Connect to PostSQL
 
 in order to use pgcli, to acess the db. I needed to install libpq. This needs sudo password from password manager, under ubuntu. 
 
@@ -263,7 +261,7 @@ When prompted, enter the password: `root`
 
 
 
-## install jupyter
+## 3. install jupyter
 
 ``` 
 uv add --dev jupyter
@@ -271,7 +269,7 @@ uv add --dev jupyter
 ub run jupyter notebook
 ```
 
-## Connect to PostgreSQL in Python/Jupyter
+## 4. Connect to PostgreSQL in Python/Jupyter
 
 inside directory in bash:
 ``` 
@@ -291,7 +289,7 @@ from sqlalchemy import create_engine
 engine = create_engine('postgresql+psycopg://root:root@localhost:5432/ny_taxi')
 ``` 
 
-## Convert Jupyter to script
+## 5. Convert Jupyter to script
 
 ```bash
 uv run jupyter nbconvert --to=script Notebook.ipynb
@@ -299,12 +297,14 @@ mv Notebook.py ingest_data.py
 
 ```
 
-## create docker network
+## 6. create docker network
 
 
 ```bash
 docker network create pg-network
 
+# add network to postgreSQL db & docker for ingest data
+# add name to postgreSQL db & host on ingest data
 
 docker run -it --rm \
   -e POSTGRES_USER="root" \
@@ -318,9 +318,7 @@ docker run -it --rm \
 ```
 
 
-
-
-## Add to docker
+## 8. Add to docker
 
 add ingrest_data to dockerfile & then build it. 
 
@@ -339,8 +337,44 @@ docker run -it --rm \
   --target-table=yellow_taxi_trips
 ```
 
+## 9. pgAdmin 
 
+pgAdmin is UI instead of pgcli.
 
+```bash
+docker run -it \
+  -e PGADMIN_DEFAULT_EMAIL="admin@admin.com" \
+  -e PGADMIN_DEFAULT_PASSWORD="root" \
+  -v pgadmin_data:/var/lib/pgadmin \
+  -p 8085:80 \
+  --network=pg-network \
+  --name pgadmin \
+  dpage/pgadmin4
+
+```
+note the addition of network and name parameters.
+
+# 10. create docker-compose.yaml
+
+see the file for details
+
+note on first run, the postgre database will not have any data in the tables, as it is a new instance. Thus re-run the ingrestion script. The ingestion script will need to new network.
+
+```bash
+docker network ls
+```
+
+Then run the ingestion with new netork. 
+
+The network should be called something like "(file name)_default"
+
+e.g. pipeline_default
+
+to execute the compose file
+
+``` bash
+docker compose up
+```
 
 ## Still To Install
 
