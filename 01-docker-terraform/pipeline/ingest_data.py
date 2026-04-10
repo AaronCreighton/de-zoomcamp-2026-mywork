@@ -34,24 +34,18 @@ parse_dates = [
     "tpep_dropoff_datetime"
 ]
 
-@click.command()
-@click.option('--pg-user', default='root', help='PostgreSQL user')
-@click.option('--pg-pass', default='root', help='PostgreSQL password')
-@click.option('--pg-host', default='localhost', help='PostgreSQL host')
-@click.option('--pg-port', default=5432, type=int, help='PostgreSQL port')
-@click.option('--pg-db', default='ny_taxi', help='PostgreSQL database name')
-@click.option('--year', default=2021, type=int, help='Year of the data')
-@click.option('--month', default=1, type=int, help='Month of the data')
-@click.option('--target-table', default='yellow_taxi_data', help='Target table name')
-@click.option('--chunksize', default=100000, type=int, help='Chunk size for reading CSV')
 
-def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, target_table, chunksize):
+
+def get_engine(pg_user, pg_pass, pg_host, pg_port, pg_db):
+    """Create SQLAlchemy engine for PostgreSQL database."""
+    return create_engine(f'postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
+
+
+def ingest_taxi_data(year, month, target_table, chunksize, engine):
     """Ingest NYC taxi data into PostgreSQL database."""
     
     prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
     url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
-    
-    engine = create_engine(f'postgresql+psycopg://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}')
 
     df_iter = pd.read_csv(
         url,
@@ -83,6 +77,30 @@ def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, target_table, ch
         )
 
         #print("Inserted:", len(df_chunk))
+
+def ingest_zone(engine):
+    """Get taxi zone data and insert into PostgreSQL database."""
+    zones_url = "https://d37ci6vzurychx.cloudfront.net/misc/taxi_zone_lookup.csv"
+    zones_df = pd.read_csv(zones_url)
+    zones_df.to_sql("taxi_zones", engine, if_exists="replace", index=False)
+    
+
+@click.command()
+@click.option('--pg-user', default='root', help='PostgreSQL user')
+@click.option('--pg-pass', default='root', help='PostgreSQL password')
+@click.option('--pg-host', default='localhost', help='PostgreSQL host')
+@click.option('--pg-port', default=5432, type=int, help='PostgreSQL port')
+@click.option('--pg-db', default='ny_taxi', help='PostgreSQL database name')
+@click.option('--year', default=2021, type=int, help='Year of the data')
+@click.option('--month', default=1, type=int, help='Month of the data')
+@click.option('--target-table', default='yellow_taxi_data', help='Target table name')
+@click.option('--chunksize', default=100000, type=int, help='Chunk size for reading CSV')
+
+def run(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, target_table, chunksize):
+    """Run the data ingestion process."""
+    engine = get_engine(pg_user, pg_pass, pg_host, pg_port, pg_db)
+    ingest_taxi_data(year, month, target_table, chunksize, engine)
+    ingest_zone(engine)  
 
 
 if __name__ == '__main__':
