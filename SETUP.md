@@ -522,6 +522,13 @@ add *.json
 
 test with github private account to make sure all credentials and sensitive files are ignored.
 
+# 6 terraform AWS
+
+they also have an example of AWS terraform
+
+https://github.com/DataTalksClub/data-engineering-zoomcamp/tree/main/01-docker-terraform/terraform/terraform/terraform_with_variable_AWS
+
+
 ## Still To Install
 
 | Tool | Status |
