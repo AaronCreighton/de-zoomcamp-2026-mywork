@@ -494,6 +494,9 @@ Compute Engine Admin, limit to create and destroy engine.
 
 e.g. terraform/keys/creds.json
 
+see here for other ways to authenicate (plus the terraform video):
+https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/01-docker-terraform/terraform/windows.md 
+
 ## 3 Add terraform extention to vscode
 
 HashiCorp is the one they recomend.
