@@ -8,8 +8,8 @@ terraform {
 }
 
 provider "google" {
-   project     = "de-zoomcamp-terraform-493201"
-   region      = "australia-southeast1"
+  project = "de-zoomcamp-terraform-493201"
+  region  = "australia-southeast1"
 }
 
 resource "google_storage_bucket" "demo-bucket" {
@@ -25,4 +25,9 @@ resource "google_storage_bucket" "demo-bucket" {
       type = "AbortIncompleteMultipartUpload"
     }
   }
+}
+
+resource "google_bigquery_dataset" "demo_dataset" {
+  dataset_id = "demo_dataset"
+
 }
