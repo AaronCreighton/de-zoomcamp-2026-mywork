@@ -354,7 +354,7 @@ docker run -it \
 ```
 note the addition of network and name parameters.
 
-# 10. create docker-compose.yaml
+## 10. create docker-compose.yaml
 
 see the file for details
 
@@ -462,6 +462,62 @@ rm -rf .venv
 
 ---
 
+# Terraform 
+
+## 1 install terraform
+
+https://developer.hashicorp.com/terraform/install
+
+can be run from vs code terminal. root password is asked for after first line.
+
+```bash
+#2026 instructions for Ubuntu:
+wget -O - https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(grep -oP '(?<=UBUNTU_CODENAME=).*' /etc/os-release || lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+sudo apt update && sudo apt install terraform
+
+```
+
+## 2. get keys for service account
+
+2.1 add serivce account to project on gcp. 
+
+2.2 give service account permission with Role access to: 
+
+Cloud storage Admin, limited to bucket creat & destroy
+BigQuery Admin, limit to create data set & destroy data set. 
+Compute Engine Admin, limit to create and destroy engine.
+
+2.3 add key to service account
+
+2.4 get jey as json & store it in terraform folder.
+
+e.g. terraform/keys/creds.json
+
+## 3 Add terraform extention to vscode
+
+HashiCorp is the one they recomend.
+
+# 4 creating main.tf
+
+create file in terraform folder. 
+
+web search for terraform provder e.g. "terraform google provider"
+
+they used https://registry.terraform.io/providers/hashicorp/google/latest/docs
+
+selected "use provider" and copied code to main.tf
+
+4.1 add resources to the main.tf
+
+
+# 5 create .gitignore 
+
+good search terraform .gitignore & copy
+
+add *.json
+
+test with github private account to make sure all credentials and sensitive files are ignored.
 
 ## Still To Install
 
