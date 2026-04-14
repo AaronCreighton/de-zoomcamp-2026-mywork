@@ -501,7 +501,7 @@ https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/01-docker-t
 
 HashiCorp is the one they recomend.
 
-# 4 creating main.tf
+## 4 creating main.tf
 
 create file in terraform folder. 
 
@@ -514,7 +514,7 @@ selected "use provider" and copied code to main.tf
 4.1 add resources to the main.tf
 
 
-# 5 create .gitignore 
+## 5 create .gitignore 
 
 good search terraform .gitignore & copy
 
@@ -522,12 +522,24 @@ add *.json
 
 test with github private account to make sure all credentials and sensitive files are ignored.
 
-# 6 terraform AWS
+## 6 terraform AWS
 
 they also have an example of AWS terraform
 
 https://github.com/DataTalksClub/data-engineering-zoomcamp/tree/main/01-docker-terraform/terraform/terraform/terraform_with_variable_AWS
 
+
+# Kestra
+
+## install with docker-compose
+
+update the docker-compose file (see folder)
+
+```
+docker compose up -d
+```
+-d stands for detached mode — runs the containers in the background so your terminal is free to use.
+Without -d the container logs stream directly to your terminal and you can't use it for anything else until you stop the containers with Ctrl+C.
 
 ## Still To Install
 
