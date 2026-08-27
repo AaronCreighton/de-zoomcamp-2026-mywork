@@ -218,6 +218,8 @@ What to look for:
 | `02-kestra-workflow-orchestration_ny_taxi_postgres_data` | Current ny_taxi data volume — data should be intact |
 | `02-kestra-workflow-orchestration_kestra_*` | Current kestra volumes |
 | `pipeline_ny_taxi_postgres_data` | Old volume from module 1 pipeline — data may be here if current is empty |
+
+
 Then start the services and verify all containers are running:
 ```bash
 cd ~/projects/de-zoomcamp-2026-mywork/02-kestra-workflow-orchestration
@@ -289,6 +291,8 @@ When prompted enter password: `root`
 
 Then inside pgcli run:
 ```sql
+-- run each line seperately.
+
 \dt
 SELECT COUNT(*) FROM yellow_tripdata;
 \q
