@@ -551,10 +551,15 @@ Without -d the container logs stream directly to your terminal and you can't use
 | Git | ✅ Done |
 | SSH Key for GitHub | ✅ Done |
 | uv | ✅ Done |
-| Python 3.11 (via uv) | ⬜ In progress |
-| GCP Account + Project | ⬜ Todo |
+| Python 3.11 (via uv) | ✅ Done |
+| GCP Account + Project | ✅ Done |
+| Terraform | ✅ Done |
+| Postgres (via Docker) | ✅ Done |
+| pgAdmin (via Docker) | ✅ Done |
+| Kestra (via Docker) | ✅ Done |
+| pgcli | ✅ Done |
+| JupyterLab | ✅ Done |
 | Google Cloud CLI | ⬜ Todo |
-| Terraform | ⬜ Todo |
 
 ---
 
