@@ -333,5 +333,37 @@ services:
       airflow-init:
         condition: service_completed_successfully
 
+  # Output Postgres database for the NYC Taxi dataset. This is used in the example DAGs.
+  # & the UI for the Postgres database is available at http://localhost:8086
+  pgdatabase:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: ny_taxi
+    ports:
+      - "5433:5432"
+    volumes:
+      - ny_taxi_postgres_data:/var/lib/postgresql
+    depends_on:
+      airflow-apiserver:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    ports:
+      - "8086:80"
+    depends_on:
+      pgdatabase:
+        condition: service_started
+
 volumes:
   postgres-db-volume:
+    driver: local
+  pgadmin_data:
+    driver: local
+  ny_taxi_postgres_data:
+    driver: local
