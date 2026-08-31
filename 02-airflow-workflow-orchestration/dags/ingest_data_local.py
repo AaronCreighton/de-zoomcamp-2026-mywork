@@ -16,8 +16,7 @@ PG_USER = os.getenv('PG_USER')
 PG_HOST = os.getenv('PG_HOST')
 PG_PORT = os.getenv('PG_PORT')
 PG_DATABASE = os.getenv('PG_DATABASE')
-TARGET_TABLE='yellow_taxi_trips'
-CHUNKSIZE=100000
+
 
 
 
@@ -32,7 +31,8 @@ local_workflow = DAG(
 URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/"
 URL_TEMPLATE = URL_PREFIX + "/yellow_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
 OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/yellow_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
-
+TABLE_NAME_TEMPLATE='yellow_taxi_trips_{{ logical_date.strftime(\'%Y_%m\') }}'
+CHUNKSIZE=100000
 
 with local_workflow:
     
@@ -57,7 +57,7 @@ with local_workflow:
             "pg_db": PG_DATABASE,
             "year": "{{ logical_date.strftime(\'%Y\') }}",
             "month": "{{ logical_date.strftime(\'%m\') }}",
-            "target_table": TARGET_TABLE,
+            "target_table": TABLE_NAME_TEMPLATE,
             "chunksize": CHUNKSIZE,
         },
     )

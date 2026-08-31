@@ -39,7 +39,7 @@ def ingest_taxi_data(year, month, target_table, chunksize, engine):
     """Ingest NYC taxi data into PostgreSQL database."""
     
     prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
-    url = f'{prefix}/yellow_tripdata_{year}-{month:02d}.csv.gz'
+    url = f'{prefix}/yellow_tripdata_{year}-{month}.csv.gz'
 
     df_iter = pd.read_csv(
         url,
@@ -84,5 +84,5 @@ def ingest_callable(pg_user, pg_pass, pg_host, pg_port, pg_db, year, month, targ
     """Run the data ingestion process."""
     engine = get_engine(pg_user, pg_pass, pg_host, pg_port, pg_db)
     engine.connect()
-    #ingest_taxi_data(year, month, target_table, chunksize, engine)
-    #ingest_zone(engine)  
+    ingest_taxi_data(year, month, target_table, chunksize, engine)
+    ingest_zone(engine)  
