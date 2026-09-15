@@ -3,6 +3,17 @@
 
 Use this document each time you return to the project after a break. Work through each step in order — each one builds on the previous.
 
+## Which sections to run
+
+Always run the base checks first. Then run only the sub-project section(s) for what you're resuming — no need to touch the others.
+
+| Section | Steps | Covers |
+|---|---|---|
+| Base health check | 1–4 | WSL2, project directory, core tools, git |
+| 01-docker-terraform | Step 5 (Terraform) only | No dedicated bring-up section yet for this module's own Docker Postgres/pgAdmin — only Terraform is currently covered |
+| K — Kestra | K1–K4 | Docker services, flow import, Postgres data, UIs |
+| A — Airflow | A1–A7 | Docker services, env vars, DAG parsing, DAG run, Postgres data |
+
 ---
 
 ## Step 1 — Confirm WSL2 Environment
@@ -72,46 +83,7 @@ Expected output:
 
 ---
 
-## Step 3 — Activate Python Environment & Verify Packages
-
-Navigate to the pipeline directory and activate the virtual environment:
-```bash
-cd 01-docker-terraform/pipeline
-source .venv/bin/activate
-```
-
-Confirm the virtual environment is active:
-```bash
-which python
-```
-
-Expected output:
-```
-/home/aaron/projects/de-zoomcamp-2026-mywork/01-docker-terraform/pipeline/.venv/bin/python
-```
-
-Verify key packages are available:
-```bash
-uv run python -c "import pandas; import sqlalchemy; import pyarrow; print('all packages ok')"
-```
-
-Expected output:
-```
-all packages ok
-```
-
-| Result | Meaning |
-|--------|---------|
-| ✅ `(pipeline)` in terminal prompt | Virtual environment is active |
-| ✅ `which python` points to `.venv` | Correct Python is being used, not system Python |
-| ✅ `all packages ok` printed | All required packages are installed |
-| ❌ `(pipeline)` not in prompt | Run `source .venv/bin/activate` |
-| ❌ `which python` points to `/usr/bin/python` | Virtual environment not active — run activate command |
-| ❌ `ModuleNotFoundError` | Package missing — run `uv add <package-name>` |
-
----
-
-## Step 4 — Verify Core Tools
+## Step 3 — Verify Core Tools
 
 Run each command and confirm the tool is available:
 ```bash
@@ -139,7 +111,7 @@ git version 2.43.0
 
 ---
 
-## Step 5 — Check Git Status
+## Step 4 — Check Git Status
 
 From the project root:
 ```bash
@@ -183,203 +155,7 @@ git restore <filename>
 
 ---
 
-## Step 6 — Start Docker Services
-
-> **Note:** Only start the `02-kestra-workflow-orchestration` compose file — it includes all services. Never run both compose files at the same time as they share port 5432.
-
-First check that Docker images are cached locally — if any are missing, the compose up will need to pull them which can take 20-30 minutes:
-```bash
-docker images
-```
-
-Expected images:
-```
-REPOSITORY          TAG
-kestra/kestra       v1.1
-postgres            18
-dpage/pgadmin4      latest
-```
-
-| Result | Meaning |
-|--------|---------|
-| ✅ All three images listed | Compose up will be fast |
-| ❌ `kestra/kestra` missing | Will need to pull — allow 20-30 minutes |
-| ❌ `postgres` or `pgadmin4` missing | Will need to pull — allow a few minutes |
-
-Then check what volumes already exist before starting services:
-```bash
-docker volume ls
-```
-
-What to look for:
-
-| Volume name contains | Meaning |
-|---------------------|---------|
-| `02-kestra-workflow-orchestration_ny_taxi_postgres_data` | Current ny_taxi data volume — data should be intact |
-| `02-kestra-workflow-orchestration_kestra_*` | Current kestra volumes |
-| `pipeline_ny_taxi_postgres_data` | Old volume from module 1 pipeline — data may be here if current is empty |
-
-
-Then start the services and verify all containers are running:
-```bash
-cd ~/projects/de-zoomcamp-2026-mywork/02-kestra-workflow-orchestration
-docker compose up -d
-docker ps
-```
-
-Expected `docker ps` output — all 4 containers running:
-
-| Container | Image | Port |
-|-----------|-------|------|
-| pgdatabase | postgres:18 | 5432 |
-| pgadmin | dpage/pgadmin4 | 8085 |
-| kestra | kestra/kestra:v1.1 | 8080-8081 |
-| kestra_postgres | postgres:18 | internal only |
-
-| Result | Meaning |
-|--------|---------|
-| ✅ All 4 containers show `Up` in STATUS | All services started correctly |
-| ⚠️ `kestra_postgres` shows `health: starting` | Normal on first start — wait 30 seconds and run `docker ps` again |
-| ❌ Port already allocated error | Another compose stack is running — run `docker compose down` from the other directory first |
-| ❌ Container shows `Exited` | Container failed to start — run `docker logs <container_name>` to investigate |
-
----
-
-## Step 7 — Re-import Kestra Flows (if fresh volume) (if fresh volume)
-
-> Only needed if Kestra has no workflows — i.e. after a fresh volume was created.
-
-Import all flows in one command from the terminal:
-```bash
-for flow in ~/projects/de-zoomcamp-2026-mywork/02-kestra-workflow-orchestration/flows/*.yaml; do
-  curl -X POST http://localhost:8080/api/v1/flows/import     -H "Content-Type: multipart/form-data"     -u admin@kestra.io:Admin1234!     -F "fileUpload=@$flow"
-done
-```
-
-Then verify flows imported correctly:
-1. Open **localhost:8080** in your browser
-2. Login with `admin@kestra.io` / `Admin1234!`
-3. Go to **Flows** in the left sidebar
-4. Confirm all flows are listed
-
-Then trigger the ingestion workflow to repopulate data:
-1. Select `04_postgre_taxi` workflow
-2. Trigger a run — select yellow / 2019 / 01
-3. Wait for it to complete successfully
-4. Verify data in Postgres via Step 7
-
-| Result | Meaning |
-|--------|---------|
-| ✅ All flows listed in Kestra UI | Flows imported successfully |
-| ✅ Row count returns 7667792 | Data ingested successfully |
-| ❌ curl returns 401 | Check username and password in the curl command |
-| ❌ Workflow fails | Check Kestra logs in the UI for error details |
-
----
-
----
-
-## Step 8 — Verify Postgres Data
-
-Connect to the database via pgcli:
-```bash
-cd ~/projects/de-zoomcamp-2026-mywork/01-docker-terraform/pipeline
-uv run pgcli -h localhost -p 5432 -u root -d ny_taxi
-```
-
-When prompted enter password: `root`
-
-Then inside pgcli run:
-```sql
--- run each line seperately.
-
-\dt
-SELECT COUNT(*) FROM yellow_tripdata;
-\q
-```
-
-Expected output:
-```
-+--------+-------------------------+-------+-------+
-| Schema | Name                    | Type  | Owner |
-|--------+-------------------------+-------+-------|
-| public | yellow_tripdata         | table | root  |
-| public | yellow_tripdata_staging | table | root  |
-+--------+-------------------------+-------+-------+
-
-+---------+
-| count   |
-|---------|
-| 7667792 |
-+---------+
-```
-
-| Result | Meaning |
-|--------|---------|
-| ✅ Tables listed and row count returned | Data is intact and Postgres is working |
-| ❌ No tables listed | Volume was recreated fresh — re-import flows via Step 7 and re-ingest data |
-| ❌ Connection refused | Postgres container not running — go back to Step 6 |
-
----
-
----
-
-## Step 9 — Verify UIs in Browser
-
-### pgAdmin
-Open **localhost:8085** and login:
-- Email: `admin@admin.com`
-- Password: `root`
-
-Add a server connection if not already saved:
-
-| Field | Value |
-|-------|-------|
-| Name | ny_taxi |
-| Host | pgdatabase |
-| Port | 5432 |
-| Database | ny_taxi |
-| Username | root |
-| Password | root |
-
-Then verify:
-1. Navigate to the `ny_taxi` database
-2. Confirm `yellow_tripdata` and `yellow_tripdata_staging` tables are present
-3. Run a quick count query to confirm data is intact:
-```sql
-SELECT COUNT(*) FROM yellow_tripdata;
-```
-
-| Result | Meaning |
-|--------|---------|
-| ✅ Tables visible and row count returns | pgAdmin connected and data intact |
-| ✅ `postgres` database is empty | Expected — this is the default system database |
-| ❌ Cannot connect to server | Check pgdatabase container is running via `docker ps` |
-| ❌ No tables in ny_taxi | Data not ingested — go back to Step 8 |
-
----
-
-### Kestra
-Open **localhost:8080** and login:
-- Email: `admin@kestra.io`
-- Password: `Admin1234!`
-
-Then verify:
-1. Go to **Flows** — confirm workflows are listed
-2. Go to **Executions** — confirm last run of `04_postgre_taxi` shows as success
-3. Trigger a test run — select yellow / 2019 / 01 and confirm it completes successfully
-
-> **Note:** If flows are missing, run the curl import loop from Step 7.
-
-| Result | Meaning |
-|--------|---------|
-| ✅ Flows listed and last execution successful | Kestra is working correctly |
-| ❌ No flows listed | Re-import flows via Step 7 |
-| ❌ Execution failed | Check Kestra logs in the UI for error details |
-
----
-
-## Step 10 — GCP & Terraform
+## Step 5 — GCP & Terraform (01-docker-terraform)
 
 GCP free trials expire after 90 days. First check which route applies:
 
@@ -442,17 +218,351 @@ Apply complete! Resources: 2 added, 0 changed, 0 destroyed.
 
 ---
 
+# K — Kestra (02-kestra-workflow-orchestration)
+
+## K1 — Start Docker Services
+
+> **Note:** Only start the `02-kestra-workflow-orchestration` compose file — it includes all Kestra-related services. Never run this and the Airflow compose file's `pgdatabase` at the same time on the same ports — see the port table in the A section.
+
+First check that Docker images are cached locally — if any are missing, the compose up will need to pull them which can take 20-30 minutes:
+```bash
+docker images
+```
+
+Expected images:
+```
+REPOSITORY          TAG
+kestra/kestra       v1.1
+postgres            18
+dpage/pgadmin4      latest
+```
+
+| Result | Meaning |
+|--------|---------|
+| ✅ All three images listed | Compose up will be fast |
+| ❌ `kestra/kestra` missing | Will need to pull — allow 20-30 minutes |
+| ❌ `postgres` or `pgadmin4` missing | Will need to pull — allow a few minutes |
+
+Then check what volumes already exist before starting services:
+```bash
+docker volume ls
+```
+
+What to look for:
+
+| Volume name contains | Meaning |
+|---------------------|---------|
+| `02-kestra-workflow-orchestration_ny_taxi_postgres_data` | Current ny_taxi data volume — data should be intact |
+| `02-kestra-workflow-orchestration_kestra_*` | Current kestra volumes |
+| `pipeline_ny_taxi_postgres_data` | Old volume from module 1 pipeline — data may be here if current is empty |
+Then start the services and verify all containers are running:
+```bash
+cd ~/projects/de-zoomcamp-2026-mywork/02-kestra-workflow-orchestration
+docker compose up -d
+docker ps
+```
+
+Expected `docker ps` output — all 4 containers running:
+
+| Container | Image | Port |
+|-----------|-------|------|
+| pgdatabase | postgres:18 | 5432 |
+| pgadmin | dpage/pgadmin4 | 8085 |
+| kestra | kestra/kestra:v1.1 | 8080-8081 |
+| kestra_postgres | postgres:18 | internal only |
+
+| Result | Meaning |
+|--------|---------|
+| ✅ All 4 containers show `Up` in STATUS | All services started correctly |
+| ⚠️ `kestra_postgres` shows `health: starting` | Normal on first start — wait 30 seconds and run `docker ps` again |
+| ❌ Port already allocated error | Another compose stack is running — run `docker compose down` from the other directory first |
+| ❌ Container shows `Exited` | Container failed to start — run `docker logs <container_name>` to investigate |
+
+---
+
+## K2 — Re-import Kestra Flows (if fresh volume)
+
+> Only needed if Kestra has no workflows — i.e. after a fresh volume was created.
+
+Import all flows in one command from the terminal:
+```bash
+for flow in ~/projects/de-zoomcamp-2026-mywork/02-kestra-workflow-orchestration/flows/*.yaml; do
+  curl -X POST http://localhost:8080/api/v1/flows/import     -H "Content-Type: multipart/form-data"     -u admin@kestra.io:Admin1234!     -F "fileUpload=@$flow"
+done
+```
+
+Then verify flows imported correctly:
+1. Open **localhost:8080** in your browser
+2. Login with `admin@kestra.io` / `Admin1234!`
+3. Go to **Flows** in the left sidebar
+4. Confirm all flows are listed
+
+Then trigger the ingestion workflow to repopulate data:
+1. Select `04_postgre_taxi` workflow
+2. Trigger a run — select yellow / 2019 / 01
+3. Wait for it to complete successfully
+4. Verify data in Postgres via K3
+
+| Result | Meaning |
+|--------|---------|
+| ✅ All flows listed in Kestra UI | Flows imported successfully |
+| ✅ Row count returns 7667792 | Data ingested successfully |
+| ❌ curl returns 401 | Check username and password in the curl command |
+| ❌ Workflow fails | Check Kestra logs in the UI for error details |
+
+---
+
+## K3 — Verify Postgres Data
+
+pgcli is installed as a dev dependency of the `01-docker-terraform/pipeline` project, so `uv run` must be invoked from inside that directory — it isn't available globally.
+
+```bash
+cd ~/projects/de-zoomcamp-2026-mywork/01-docker-terraform/pipeline
+uv run pgcli -h localhost -p 5432 -u root -d ny_taxi
+```
+
+When prompted enter password: `root`
+
+Then inside pgcli run:
+```sql
+\dt
+SELECT COUNT(*) FROM yellow_tripdata;
+\q
+```
+
+Expected output:
+```
++--------+-------------------------+-------+-------+
+| Schema | Name                    | Type  | Owner |
+|--------+-------------------------+-------+-------|
+| public | yellow_tripdata         | table | root  |
+| public | yellow_tripdata_staging | table | root  |
++--------+-------------------------+-------+-------+
+
++---------+
+| count   |
+|---------|
+| 7667792 |
++---------+
+```
+
+| Result | Meaning |
+|--------|---------|
+| ✅ Tables listed and row count returned | Data is intact and Postgres is working |
+| ❌ No tables listed | Volume was recreated fresh — re-import flows via K2 and re-ingest data |
+| ❌ Connection refused | Postgres container not running — go back to K1 |
+
+---
+
+## K4 — Verify UIs in Browser
+
+#### pgAdmin
+Open **localhost:8085** and login:
+- Email: `admin@admin.com`
+- Password: `root`
+
+Add a server connection if not already saved:
+
+| Field | Value |
+|-------|-------|
+| Name | ny_taxi |
+| Host | pgdatabase |
+| Port | 5432 |
+| Database | ny_taxi |
+| Username | root |
+| Password | root |
+
+Then verify:
+1. Navigate to the `ny_taxi` database
+2. Confirm `yellow_tripdata` and `yellow_tripdata_staging` tables are present
+3. Run a quick count query to confirm data is intact:
+```sql
+SELECT COUNT(*) FROM yellow_tripdata;
+```
+
+| Result | Meaning |
+|--------|---------|
+| ✅ Tables visible and row count returns | pgAdmin connected and data intact |
+| ✅ `postgres` database is empty | Expected — this is the default system database |
+| ❌ Cannot connect to server | Check pgdatabase container is running via `docker ps` |
+| ❌ No tables in ny_taxi | Data not ingested — go back to K3 |
+
+---
+
+#### Kestra
+Open **localhost:8080** and login:
+- Email: `admin@kestra.io`
+- Password: `Admin1234!`
+
+Then verify:
+1. Go to **Flows** — confirm workflows are listed
+2. Go to **Executions** — confirm last run of `04_postgre_taxi` shows as success
+3. Trigger a test run — select yellow / 2019 / 01 and confirm it completes successfully
+
+> **Note:** If flows are missing, run the curl import loop from K2.
+
+| Result | Meaning |
+|--------|---------|
+| ✅ Flows listed and last execution successful | Kestra is working correctly |
+| ❌ No flows listed | Re-import flows via K2 |
+| ❌ Execution failed | Check Kestra logs in the UI for error details |
+
+---
+
+# A — Airflow (02-airflow-workflow-orchestration)
+
+Steps 1–5 (base checks) must pass first. This section brings the Airflow stack back up and verifies it end to end — written for the case where everything was cleanly shut down, not torn down.
+
+For the reasoning behind choices referenced below (why `pgdatabase` depends on the apiserver, why Airflow gets its own separate Postgres), see `DESIGN_DECISIONS.md`.
+
+## A1 — Check images and volumes are still present
+
+```bash
+docker images
+docker volume ls
+```
+
+Expected images — note two different Postgres versions coexist here: `postgres:16` is Airflow's own metadata database, entirely separate from this project's own `pgdatabase` (running `postgres:18`, same version as Kestra's):
+
+```
+apache/airflow:3.3.1                                                  ← base image the Dockerfile builds from
+02-airflow-workflow-orchestration-airflow-apiserver:latest            ← built
+02-airflow-workflow-orchestration-airflow-scheduler:latest            ← built
+02-airflow-workflow-orchestration-airflow-dag-processor:latest        ← built
+02-airflow-workflow-orchestration-airflow-worker:latest                ← built
+02-airflow-workflow-orchestration-airflow-triggerer:latest             ← built
+02-airflow-workflow-orchestration-airflow-init:latest                  ← built, one-shot, only runs during setup
+postgres:16                                                           ← Airflow's own metadata DB
+postgres:18                                                           ← this project's ny_taxi pgdatabase
+redis:7.2-bookworm                                                    ← required by the default CeleryExecutor
+dpage/pgadmin4:latest                                                 ← this project's own pgAdmin
+```
+
+The six `02-airflow-workflow-orchestration-*` images are built, not pulled — one per service, because `build: .` with `image:` commented out gives each service its own implicit image rather than sharing one. They each report a large total size, but the true per-image cost on top of the shared base layers is only around 660MB — not six times the base image's size.
+
+`postgres:18` and `dpage/pgadmin4` are the same image names Kestra's project also uses — if both projects have been pulled, `docker images` shows only one copy of each, shared between them; this doesn't distinguish which project it belongs to.
+
+Expected volumes (names will be prefixed with the compose project name):
+```
+02-airflow-workflow-orchestration_postgres-db-volume
+02-airflow-workflow-orchestration_ny_taxi_postgres_data
+02-airflow-workflow-orchestration_pgadmin_data
+```
+
+| Result | Meaning |
+|--------|---------|
+| ✅ All images and volumes listed | Nothing was deleted; a plain `up -d` should restore full state |
+| ❌ Volumes missing | Something was torn down with `--volumes` since last session — `airflow-init` and DAG data will both need re-doing, see A5 and A7 |
+| ❌ None of the six `02-airflow-workflow-orchestration-*` images present, only base `apache/airflow` | Built images were removed — check `docker-compose.yaml` still has `build: .` uncommented, not `image:` |
+| ❌ Some but not all six built images present | One service's build failed or was skipped previously — `docker compose build` should recreate the missing one(s) |
+| ❌ `redis` missing | Required by the default CeleryExecutor; `docker compose up -d` should pull it automatically |
+
+---
+
+## A2 — Start the stack
+
+```bash
+cd ~/projects/de-zoomcamp-2026-mywork/02-airflow-workflow-orchestration
+docker compose up -d
+docker ps
+```
+
+Expect 9 containers: `airflow-apiserver`, `airflow-scheduler`, `airflow-dag-processor`, `airflow-worker`, `airflow-triggerer`, the Airflow metadata `postgres`, `redis`, plus this project's own `pgdatabase` and `pgadmin`.
+
+| Result | Meaning |
+|--------|---------|
+| ✅ All 9 show `Up`/`healthy` | Stack started correctly |
+| ⚠️ `pgdatabase` takes noticeably longer to start than the rest | Expected — it has `depends_on: airflow-apiserver, condition: service_healthy`, a deliberate choice logged in `DESIGN_DECISIONS.md`. It waits for the apiserver to report healthy first |
+| ❌ Port already allocated (8090, 5433, or 8086) | Another process or stack already holds that port — check nothing from a previous session is still up with `docker ps -a` across other projects |
+| ❌ `airflow-apiserver` never reaches healthy, `pgdatabase` never starts | Apiserver problem — check its logs; `pgdatabase` is blocked behind it by design, see the `depends_on` entry in `DESIGN_DECISIONS.md` |
+
+---
+
+## A3 — Confirm environment variables actually reached the containers
+
+This is the specific failure that cost the most time tonight: the compose file having the right `environment:` block doesn't mean a running container has it, if that container was started before the block was added. Since this is a fresh `up -d` on an unchanged compose file, this should pass — but it's the single most valuable 10-second check available if anything downstream misbehaves.
+
+```bash
+docker compose exec airflow-scheduler env | grep PG_
+```
+
+| Result | Meaning |
+|--------|---------|
+| ✅ `PG_USER`, `PG_HOST`, `PG_PORT`, `PG_DATABASE` etc. all show real values | Environment reached the container correctly |
+| ❌ Empty or missing | Recreate the containers: `docker compose up -d` (compose detects config changed and recreates); if that doesn't fix it, check `.env` still has the right values and `env_file:`/`environment:` in the compose file still reference them |
+
+---
+
+## A4 — Confirm the DAG parses with no import errors
+
+```bash
+docker compose exec airflow-scheduler ls -la /opt/airflow/dags
+```
+
+Then check the Airflow UI (**localhost:8090**) → DAGs list. The ingestion DAG should appear with no red "Broken DAG" banner.
+
+| Result | Meaning |
+|--------|---------|
+| ✅ DAG listed, no import errors | dag-processor parsed it cleanly |
+| ❌ `ModuleNotFoundError` | Check sibling file exists and — case-sensitively — matches the import statement exactly (`ingest_task.py` vs `Ingest_task.py` caused this once already) |
+| ❌ `SyntaxError` | Check the file for a plain typo — a capitalized `From`/`Import` caused this once already |
+| ❌ DAG missing entirely from the list | dag-processor may not have picked it up yet — wait ~30 seconds, it polls rather than watching instantly |
+
+---
+
+## A5 — Log in and confirm the DAG is unpaused
+
+Open **localhost:8090**, login `airflow` / `airflow`. Find the ingestion DAG and toggle it on if it's paused (new/recreated DAGs default to paused).
+
+---
+
+## A6 — Test one run manually before trusting the schedule
+
+Trigger the DAG with a specific logical date typed directly into the field (not the calendar picker — defaults to now and is awkward to move back). Must be on or after the DAG's `start_date` — `2021-01-01`, or a couple of months after, both work.
+
+| Result | Meaning |
+|--------|---------|
+| ✅ Run succeeds, logical date matches the month requested | DAG logic confirmed working |
+| ❌ `Connection refused` on port 5433 | `PG_PORT` is set to the host-side port (5433) instead of the container-side port (5432) — container-to-container traffic never uses the published mapping |
+| ❌ Values print as the string `'None'` | A value is being read via `os.getenv()` at module level / inside `op_kwargs` rather than inside the task callable — captured once at parse time rather than read at run time |
+
+---
+
+## A7 — Verify Postgres data
+
+Open **localhost:8086**, add a server connection if not already saved. Use `.env` values to connect.
+
+Find the table name in the UI — expand the connection's tree: Databases → the database from `.env` → Schemas → public → Tables.
+
+The source files contain more than one month's data. To compare file names to table names, if the table already exists, drop and run again.
+
+| Result | Meaning |
+|--------|---------|
+| ✅ Table exists, month matches A6's logical date | Data intact and correct |
+| ❌ No tables | Either a genuinely fresh volume (see A1) or A6 hasn't been run yet this session |
+| ❌ Table exists but month doesn't match | Recheck the logical date used in A6, or the DAG's date-handling logic |
+
+---
+
+
 ## Summary
 
-| Step | Check | Status |
-|------|-------|--------|
-| 1 | WSL2 environment | ✅ |
-| 2 | Project directory and contents | ✅ |
-| 3 | Python environment and packages | ✅ |
-| 4 | Core tools installed and versioned | ✅ |
-| 5 | Git status and history | ✅ |
-| 6 | Docker images, volumes and services | ✅ |
-| 7 | Kestra flows imported | ✅ |
-| 8 | Postgres data verified via pgcli | ✅ |
-| 9 | pgAdmin and Kestra UIs working | ✅ |
-| 10 | GCP & Terraform | ⚠️ Needs new GCP account |
+| Section | Step | Check |
+|---|---|---|
+| Base | 1 | WSL2 environment |
+| Base | 2 | Project directory and contents |
+| Base | 3 | Core tools installed and versioned |
+| Base | 4 | Git status and history |
+| 01-docker-terraform | 5 | GCP & Terraform — ⚠️ needs new GCP account, see Route B |
+| K — Kestra | K1 | Docker images, volumes and services |
+| K — Kestra | K2 | Flows imported |
+| K — Kestra | K3 | Postgres data verified via pgcli |
+| K — Kestra | K4 | pgAdmin and Kestra UIs working |
+| A — Airflow | A1 | Docker images and volumes present |
+| A — Airflow | A2 | Stack started, 9 containers healthy |
+| A — Airflow | A3 | Environment variables reached containers |
+| A — Airflow | A4 | DAG parses with no import errors |
+| A — Airflow | A5 | DAG unpaused |
+| A — Airflow | A6 | Manual run succeeds with correct logical date |
+| A — Airflow | A7 | Postgres data verified via pgcli |
+| A — Airflow | A8 | Airflow and pgAdmin UIs working |
