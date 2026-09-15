@@ -81,13 +81,6 @@ x-airflow-common:
     AIRFLOW_CONFIG: '/opt/airflow/config/airflow.cfg'
     
     # The following environment variables are used to configure the ingestion DAG
-    PG_PASSWORD: "${PG_PASSWORD}"
-    PG_USER: "${PG_USER}"
-    PG_HOST: "${PG_HOST}"
-    PG_PORT: "${PG_PORT}"
-    PG_DATABASE: "${PG_DATABASE}"
-    TARGET_TABLE: "${TARGET_TABLE}"
-    CHUNKSIZE: "${CHUNKSIZE}"
 
   volumes:
     - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
