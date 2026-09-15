@@ -10,7 +10,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.python import PythonOperator 
 
-from ingest_task import ingest_callable
+from load_taxi_local import load_callable
 
 AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 
@@ -18,34 +18,32 @@ AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 # Schedule_interval="0 6 2 * *" means the DAG will run at 6:00 AM on the 2nd day of every month.
 # to update the schedule interval, you can use the cron expression from: https://crontab.guru/
 local_workflow = DAG(
-    dag_id="data_ingest_local",
+    dag_id="04_postgres_taxi_dag",
     start_date=datetime(2021, 1, 1),
     schedule="0 6 2 * *",
 )
 
-URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/"
-URL_TEMPLATE = URL_PREFIX + "/yellow_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
-OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/yellow_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
-TABLE_NAME_TEMPLATE='yellow_taxi_trips_{{ logical_date.strftime(\'%Y_%m\') }}'
+TAXI_COLOUR = 'yellow'
+URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/" + TAXI_COLOUR + "/"
+URL_TEMPLATE = URL_PREFIX + "/" + TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
+OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
+TABLE_NAME_TEMPLATE='tripdata_'+ TAXI_COLOUR + '_staging'
 CHUNKSIZE=100000
 PG_CONN_ID="pg_ny_taxi"
 
 with local_workflow:
     
-    wget_task = BashOperator(
-        task_id="wget_task",
+    extract_task = BashOperator(
+        task_id="extract_task",
         bash_command=f'wget {URL_TEMPLATE} -O {OUTPUT_FILE_TEMPLATE}'
     )
     
-    # test_parameters = BashOperator(
-    #     task_id="test_parameters",
-    #     bash_command=f'echo "PG_USER: {PG_USER}, PG_PASSWORD: {PG_PASSWORD}, PG_HOST: {PG_HOST}, PG_PORT: {PG_PORT}, PG_DATABASE: {PG_DATABASE}"'
-    # )
     
-    ingest_task = PythonOperator(
-        task_id="ingest_task",
-        python_callable=ingest_callable,
+    load_task = PythonOperator(
+        task_id="load_data_task",
+        python_callable=load_callable,
         op_kwargs={
+            "url": URL_TEMPLATE, 
             "pg_conn_id": PG_CONN_ID,
             "year": "{{ logical_date.strftime(\'%Y\') }}",
             "month": "{{ logical_date.strftime(\'%m\') }}",
@@ -54,6 +52,6 @@ with local_workflow:
         },
     )
     
-    wget_task >> ingest_task
+    extract_task >> load_task
     
     

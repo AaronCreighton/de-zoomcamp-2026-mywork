@@ -36,11 +36,9 @@ def get_engine(pg_conn_id):
     return PostgresHook(postgres_conn_id=pg_conn_id).get_sqlalchemy_engine()
 
 
-def ingest_taxi_data(year, month, target_table, chunksize, engine):
+def load_taxi_data(url, year, month, target_table, chunksize, engine):
     """Ingest NYC taxi data into PostgreSQL database."""
-    
-    prefix = 'https://github.com/DataTalksClub/nyc-tlc-data/releases/download/yellow/'
-    url = f'{prefix}/yellow_tripdata_{year}-{month}.csv.gz'
+
 
     df_iter = pd.read_csv(
         url,
@@ -79,10 +77,10 @@ def ingest_zone(engine):
     zones_df = pd.read_csv(zones_url)
     zones_df.to_sql("taxi_zones", engine, if_exists="replace", index=False)
     
-def ingest_callable(pg_conn_id, year, month, target_table, chunksize):
+def load_callable(url, pg_conn_id, year, month, target_table, chunksize):
     
     """Run the data ingestion process."""
     engine = get_engine(pg_conn_id)
     engine.connect()
-    ingest_taxi_data(year, month, target_table, chunksize, engine)
+    load_taxi_data(url, year, month, target_table, chunksize, engine)
     ingest_zone(engine)  
