@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-
+# data types for passing the csv file and define staging table schema.
 dtype = {
     "VendorID": "Int64",
     "passenger_count": "Int64",

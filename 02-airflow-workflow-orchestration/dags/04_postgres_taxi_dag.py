@@ -8,7 +8,9 @@ from datetime import datetime
 from airflow import DAG
 
 from airflow.providers.standard.operators.bash import BashOperator
-from airflow.providers.standard.operators.python import PythonOperator 
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
+
 
 from load_taxi_local import load_callable
 
@@ -27,7 +29,8 @@ TAXI_COLOUR = 'yellow'
 URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/" + TAXI_COLOUR + "/"
 URL_TEMPLATE = URL_PREFIX + "/" + TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
 OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}.csv.gz"
-TABLE_NAME_TEMPLATE='tripdata_'+ TAXI_COLOUR + '_staging'
+STAGING_TABLE='tripdata_'+ TAXI_COLOUR + '_staging'
+FINAL_TABLE='tripdata_'+ TAXI_COLOUR
 CHUNKSIZE=100000
 PG_CONN_ID="pg_ny_taxi"
 
@@ -47,11 +50,22 @@ with local_workflow:
             "pg_conn_id": PG_CONN_ID,
             "year": "{{ logical_date.strftime(\'%Y\') }}",
             "month": "{{ logical_date.strftime(\'%m\') }}",
-            "target_table": TABLE_NAME_TEMPLATE,
+            "target_table": STAGING_TABLE,
             "chunksize": CHUNKSIZE,
         },
     )
     
-    extract_task >> load_task
+    create_final = SQLExecuteQueryOperator(
+        task_id="transform_task",
+        conn_id=PG_CONN_ID,
+        sql="sql/transform.sql",
+        params={"final_table": FINAL_TABLE,
+                "staging_table": STAGING_TABLE,
+                "taxi_colour": TAXI_COLOUR
+                },
+        split_statements=True,
+        autocommit=False, #make true for testing, making each statement a transaction. 
+    )
     
+    extract_task >> load_task >> create_final
     
