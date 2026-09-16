@@ -48,8 +48,7 @@ with local_workflow:
         op_kwargs={
             "url": URL_TEMPLATE, 
             "pg_conn_id": PG_CONN_ID,
-            "year": "{{ logical_date.strftime(\'%Y\') }}",
-            "month": "{{ logical_date.strftime(\'%m\') }}",
+            "taxi_colour": TAXI_COLOUR,
             "target_table": STAGING_TABLE,
             "chunksize": CHUNKSIZE,
         },

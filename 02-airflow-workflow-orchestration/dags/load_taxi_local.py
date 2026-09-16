@@ -3,31 +3,52 @@ from sqlalchemy import create_engine
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 # data types for passing the csv file and define staging table schema.
-dtype = {
-    "VendorID": "Int64",
-    "passenger_count": "Int64",
-    "trip_distance": "float64",
-    "RatecodeID": "Int64",
-    "store_and_fwd_flag": "string",
-    "PULocationID": "Int64",
-    "DOLocationID": "Int64",
-    "payment_type": "Int64",
-    "fare_amount": "float64",
-    "extra": "float64",
-    "mta_tax": "float64",
-    "tip_amount": "float64",
-    "tolls_amount": "float64",
-    "improvement_surcharge": "float64",
-    "total_amount": "float64",
-    "congestion_surcharge": "float64"
+SCHEMAS = {
+    "yellow": {
+        "dtype": {
+            "VendorID": "Int64",
+            "passenger_count": "Int64",
+            "trip_distance": "float64",
+            "RatecodeID": "Int64",
+            "store_and_fwd_flag": "string",
+            "PULocationID": "Int64",
+            "DOLocationID": "Int64",
+            "payment_type": "Int64",
+            "fare_amount": "float64",
+            "extra": "float64",
+            "mta_tax": "float64",
+            "tip_amount": "float64",
+            "tolls_amount": "float64",
+            "improvement_surcharge": "float64",
+            "total_amount": "float64",
+            "congestion_surcharge": "float64",
+        },
+        "parse_dates": ["tpep_pickup_datetime", "tpep_dropoff_datetime"],
+    },
+    "green": {
+        "dtype": {
+            "VendorID": "Int64",
+            "passenger_count": "Int64",
+            "trip_distance": "float64",
+            "RatecodeID": "Int64",
+            "store_and_fwd_flag": "string",
+            "PULocationID": "Int64",
+            "DOLocationID": "Int64",
+            "payment_type": "Int64",
+            "fare_amount": "float64",
+            "extra": "float64",
+            "mta_tax": "float64",
+            "tip_amount": "float64",
+            "tolls_amount": "float64",
+            "ehail_fee": "float64",
+            "improvement_surcharge": "float64",
+            "total_amount": "float64",
+            "trip_type": "Int64",
+            "congestion_surcharge": "float64",
+        },
+        "parse_dates": ["lpep_pickup_datetime", "lpep_dropoff_datetime"],
+    },
 }
-
-
-
-parse_dates = [
-    "tpep_pickup_datetime",
-    "tpep_dropoff_datetime"
-]
 
 
 
@@ -36,14 +57,15 @@ def get_engine(pg_conn_id):
     return PostgresHook(postgres_conn_id=pg_conn_id).get_sqlalchemy_engine()
 
 
-def load_taxi_data(url, year, month, target_table, chunksize, engine):
+def load_taxi_data(url, target_table,taxi_colour, chunksize, engine):
     """Ingest NYC taxi data into PostgreSQL database."""
-
-
+    
+    schema = SCHEMAS[taxi_colour]
+    
     df_iter = pd.read_csv(
         url,
-        dtype=dtype,
-        parse_dates=parse_dates,
+        dtype=schema["dtype"],
+        parse_dates=schema["parse_dates"],
         iterator=True,
         chunksize=chunksize
     )
@@ -77,10 +99,10 @@ def ingest_zone(engine):
     zones_df = pd.read_csv(zones_url)
     zones_df.to_sql("taxi_zones", engine, if_exists="replace", index=False)
     
-def load_callable(url, pg_conn_id, year, month, target_table, chunksize):
+def load_callable(url, pg_conn_id, taxi_colour, target_table, chunksize):
     
     """Run the data ingestion process."""
     engine = get_engine(pg_conn_id)
     engine.connect()
-    load_taxi_data(url, year, month, target_table, chunksize, engine)
+    load_taxi_data(url, target_table, taxi_colour, chunksize, engine)
     ingest_zone(engine)  
