@@ -30,11 +30,17 @@ def make_dag(TAXI_COLOUR):
     STAGING_TABLE='tripdata_'+ TAXI_COLOUR + '_staging'
     FINAL_TABLE='tripdata_'+ TAXI_COLOUR
     
+    # kestra 05_postgres_taxi_scheduled.py has the following schedule intervals for green and yellow taxi data:
+    SCHEDULES = {
+        "green": "0 9 1 * *",
+        "yellow": "0 10 1 * *",
+    } 
+        
     
     with DAG(
         dag_id="04_postgres_taxi_"+TAXI_COLOUR+"_dag",
         start_date=datetime(2021, 1, 1),
-        schedule="0 6 2 * *",
+        schedule=SCHEDULES.get(TAXI_COLOUR),
     ) as local_workflow:
 
         extract_task = BashOperator(
