@@ -19,7 +19,7 @@ CHUNKSIZE=100000
 PG_CONN_ID="pg_ny_taxi"
    
     
-    
+# older version of Airflow Dag factory function, compared to GCP dag.    
 def make_dag(TAXI_COLOUR):
     # Schedule_interval="0 6 2 * *" means the DAG will run at 6:00 AM on the 2nd day of every month.
     # to update the schedule interval, you can use the cron expression from: https://crontab.guru/
@@ -61,7 +61,7 @@ def make_dag(TAXI_COLOUR):
             },
         )
     
-        create_final = SQLExecuteQueryOperator(
+        transform_task = SQLExecuteQueryOperator(
             task_id="transform_task",
             conn_id=PG_CONN_ID,
             sql=f"sql/transform_"+TAXI_COLOUR+".sql",
@@ -73,7 +73,14 @@ def make_dag(TAXI_COLOUR):
             autocommit=False, #make true for testing, making each statement a transaction. 
         )
         
-        extract_task >> load_task >> create_final
+        cleanup = BashOperator(
+            task_id="cleanup",
+            bash_command="rm -f " + OUTPUT_FILE_TEMPLATE,
+            # trigger_rule="all_done",  # enable once failures are handled elsewhere —
+            # skips cleanup on failure by default, which keeps the file for inspection
+        )
+        
+        extract_task >> load_task >> transform_task >> cleanup
 
 
     return local_workflow
