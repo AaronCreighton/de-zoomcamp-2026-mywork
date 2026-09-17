@@ -9,7 +9,7 @@ variable "credentials" {
 variable "project" {
   description = "The GCP project to use for creating resources."
   type        = string
-  default     = "de-zoomcamp-terraform-493201"
+  default     = "project-434fba12-0f4e-4a19-bc3"
 
 }
 
