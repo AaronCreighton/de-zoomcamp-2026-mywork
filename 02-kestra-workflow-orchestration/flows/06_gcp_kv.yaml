@@ -1,22 +1,27 @@
-id: 07_gcp_setup
+id: 06_gcp_kv
 namespace: zoomcamp
 
 tasks:
-  - id: create_gcs_bucket
-    type: io.kestra.plugin.gcp.gcs.CreateBucket
-    ifExists: SKIP
-    storageClass: REGIONAL
-    name: "{{kv('GCP_BUCKET_NAME')}}" # make sure it's globally unique!
+  - id: gcp_project_id
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_PROJECT_ID
+    kvType: STRING
+    value: kestra-sandbox # TODO replace with your project id
 
-  - id: create_bq_dataset
-    type: io.kestra.plugin.gcp.bigquery.CreateDataset
-    name: "{{kv('GCP_DATASET')}}"
-    ifExists: SKIP
+  - id: gcp_location
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_LOCATION
+    kvType: STRING
+    value: europe-west2
 
-pluginDefaults:
-  - type: io.kestra.plugin.gcp
-    values:
-      serviceAccount: "{{secret('GCP_CREDS')}}"
-      projectId: "{{kv('GCP_PROJECT_ID')}}"
-      location: "{{kv('GCP_LOCATION')}}"
-      bucket: "{{kv('GCP_BUCKET_NAME')}}"
+  - id: gcp_bucket_name
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_BUCKET_NAME
+    kvType: STRING
+    value: your-name-kestra # TODO make sure it's globally unique!
+
+  - id: gcp_dataset
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_DATASET
+    kvType: STRING
+    value: zoomcamp
