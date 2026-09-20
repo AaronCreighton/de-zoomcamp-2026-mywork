@@ -6,10 +6,11 @@ import os
 from datetime import datetime
 
 
-from airflow.sdk import dag, task
+from airflow.sdk import dag, Variable
 
 from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
+from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 
 
 AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
@@ -35,10 +36,10 @@ def make_dag(TAXI_COLOUR, CONFIG):
     OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + COlOUR_DATE + ".csv"
     
     # GCP variables
-    GCS_OBJECT_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata/{{ logical_date.strftime(\'%Y/%m\') }}.csv"
+    GCS_OBJECT_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata/{{ logical_date.strftime(\"%Y/%m\") }}.csv"
     
     #STAGING_TABLE='tripdata_'+ TAXI_COLOUR + '_staging'
-    #FINAL_TABLE='tripdata_'+ TAXI_COLOUR
+    FINAL_TABLE='tripdata_'+ TAXI_COLOUR
      
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
@@ -58,9 +59,28 @@ def make_dag(TAXI_COLOUR, CONFIG):
             gcp_conn_id=GCP_CONN_ID,
             src=OUTPUT_FILE_TEMPLATE,
             dst=GCS_OBJECT_PREFIX,
-            bucket="{{var.value.GCP_BUCKET}}",
+            bucket=Variable.get("GCP_BUCKET"),
         )
         
+        
+        bq_external_table = BigQueryInsertJobOperator(
+            task_id="bq_create_external_table",
+            gcp_conn_id=GCP_CONN_ID,
+            configuration={
+                "query": {
+                    "query": "{% include 'sql/external_table_" + colour + "_bigquery.sql' %}",
+                    "useLegacySql": False,
+                }
+            },
+            params={
+                "project": Variable.get("GCP_PROJECT"),
+                "dataset": Variable.get("GCP_DATASET"),
+                "table": FINAL_TABLE,
+                "bucket": Variable.get("GCP_BUCKET"),
+                "gcs_object": GCS_OBJECT_PREFIX,
+            },
+        )
+                
         #cleanup = BashOperator(
             #task_id="cleanup",
             #bash_command="rm -f " + OUTPUT_FILE_TEMPLATE,
@@ -68,7 +88,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
             # skips cleanup on failure by default, which keeps the file for inspection
         #)
         
-        extract_task >> upload_task #>> cleanup
+        extract_task >> upload_task >> bq_external_table #>> cleanup
 
     return local_workflow()
 
