@@ -38,8 +38,11 @@ def make_dag(TAXI_COLOUR, CONFIG):
     # GCP variables
     GCS_OBJECT_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata/{{ logical_date.strftime(\"%Y/%m\") }}.csv"
     
-    #STAGING_TABLE='tripdata_'+ TAXI_COLOUR + '_staging'
-    FINAL_TABLE='tripdata_'+ TAXI_COLOUR
+    # table names for external and staging tables in BigQuery
+    TABLE_NAME= 'tripdata_' + TAXI_COLOUR  #+ "_tripdata_{{ logical_date.strftime(\'%Y_%m\') }}"
+    #EXTERNAL_TABLE=  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y_%m\') }}" + '_ext'
+    #STAGING_TABLE=  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y_%m\') }}" + '_staging'
+    
      
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
@@ -75,11 +78,28 @@ def make_dag(TAXI_COLOUR, CONFIG):
             params={
                 "project": Variable.get("GCP_PROJECT"),
                 "dataset": Variable.get("GCP_DATASET"),
-                "table": FINAL_TABLE,
+                "table": TABLE_NAME,
                 "bucket": Variable.get("GCP_BUCKET"),
                 "gcs_object": GCS_OBJECT_PREFIX,
             },
         )
+        
+        bq_staging_table = BigQueryInsertJobOperator(
+                    task_id="bq_create_staging_table",
+                    gcp_conn_id=GCP_CONN_ID,
+                    configuration={
+                        "query": {
+                            "query": "{% include 'sql/staging_table_" + colour + "_bigquery.sql' %}",
+                            "useLegacySql": False,
+                        }
+                    },
+                    params={
+                        "project": Variable.get("GCP_PROJECT"),
+                        "dataset": Variable.get("GCP_DATASET"),
+                        "table": TABLE_NAME,
+                        "filename": TAXI_COLOUR + "_tripdata_.csv",
+                    },
+                )
                 
         #cleanup = BashOperator(
             #task_id="cleanup",
@@ -88,7 +108,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
             # skips cleanup on failure by default, which keeps the file for inspection
         #)
         
-        extract_task >> upload_task >> bq_external_table #>> cleanup
+        extract_task >> upload_task >> bq_external_table >> bq_staging_table #>> cleanup
 
     return local_workflow()
 

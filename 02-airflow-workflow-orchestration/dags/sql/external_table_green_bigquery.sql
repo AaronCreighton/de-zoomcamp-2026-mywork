@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE `{{ params.project }}.{{ params.dataset }}.{{ params.table }}_ext`
+CREATE OR REPLACE EXTERNAL TABLE `{{ params.project }}.{{ params.dataset }}.{{ params.table }}_{{ logical_date.strftime("%Y_%m") }}_ext`
           (
               VendorID STRING OPTIONS (description = 'A code indicating the LPEP provider that provided the record. 1= Creative Mobile Technologies, LLC; 2= VeriFone Inc.'),
               lpep_pickup_datetime TIMESTAMP OPTIONS (description = 'The date and time when the meter was engaged'),
