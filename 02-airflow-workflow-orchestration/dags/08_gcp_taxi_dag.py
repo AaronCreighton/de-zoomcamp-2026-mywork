@@ -36,14 +36,13 @@ def make_dag(TAXI_COLOUR, CONFIG):
     OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + COlOUR_DATE + ".csv"
     
     # GCP variables
-    GCS_OBJECT_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata/{{ logical_date.strftime(\"%Y/%m\") }}.csv"
+    GCS_FILE_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata"
+    
     
     # table names for external and staging tables in BigQuery
-    TABLE_NAME= 'tripdata_' + TAXI_COLOUR  #+ "_tripdata_{{ logical_date.strftime(\'%Y_%m\') }}"
-    #EXTERNAL_TABLE=  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y_%m\') }}" + '_ext'
-    #STAGING_TABLE=  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y_%m\') }}" + '_staging'
+    TABLE_NAME= 'tripdata_' + TAXI_COLOUR  
     
-     
+         
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
         dag_id="08_gcp_taxi_"+TAXI_COLOUR+"_dag",
@@ -61,7 +60,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
             task_id="upload_to_gcs",
             gcp_conn_id=GCP_CONN_ID,
             src=OUTPUT_FILE_TEMPLATE,
-            dst=GCS_OBJECT_PREFIX,
+            dst=GCS_FILE_PREFIX + "/{{ logical_date.strftime(\"%Y/%m\") }}.csv",
             bucket=Variable.get("GCP_BUCKET"),
         )
         
@@ -80,7 +79,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
                 "dataset": Variable.get("GCP_DATASET"),
                 "table": TABLE_NAME,
                 "bucket": Variable.get("GCP_BUCKET"),
-                "gcs_object": GCS_OBJECT_PREFIX,
+                "gcs_object": GCS_FILE_PREFIX,
             },
         )
         
@@ -97,7 +96,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
                         "project": Variable.get("GCP_PROJECT"),
                         "dataset": Variable.get("GCP_DATASET"),
                         "table": TABLE_NAME,
-                        "filename": TAXI_COLOUR + "_tripdata_.csv",
+                        "filename": TAXI_COLOUR + "_tripdata",
                     },
                 )
                 

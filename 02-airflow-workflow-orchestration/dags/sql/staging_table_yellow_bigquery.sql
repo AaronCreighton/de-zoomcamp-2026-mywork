@@ -8,6 +8,6 @@ CREATE OR REPLACE TABLE `{{params.project}}.{{ params.dataset }}.{{params.table}
               COALESCE(CAST(PULocationID AS STRING), ""),
               COALESCE(CAST(DOLocationID AS STRING), "")
             )) AS unique_row_id,
-            "{{params.filename}}" AS filename,
+            '{{params.filename}}_{{ logical_date.strftime("%Y-%m") }}.csv' AS filename,
             *
           FROM `{{params.project}}.{{ params.dataset }}.{{params.table}}_{{ logical_date.strftime("%Y_%m") }}_ext`;

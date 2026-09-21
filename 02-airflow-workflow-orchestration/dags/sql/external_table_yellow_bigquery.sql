@@ -1,4 +1,4 @@
-CREATE OR REPLACE EXTERNAL TABLE '{{ params.project }}.{{ params.dataset }}.{{ params.table }}_{{ logical_date.strftime("%Y_%m")}}_ext'
+CREATE OR REPLACE EXTERNAL TABLE `{{ params.project }}.{{ params.dataset }}.{{ params.table }}_{{ logical_date.strftime("%Y_%m")}}_ext`
           (
               VendorID STRING OPTIONS (description = 'A code indicating the LPEP provider that provided the record. 1= Creative Mobile Technologies, LLC; 2= VeriFone Inc.'),
               tpep_pickup_datetime TIMESTAMP OPTIONS (description = 'The date and time when the meter was engaged'),
@@ -21,7 +21,7 @@ CREATE OR REPLACE EXTERNAL TABLE '{{ params.project }}.{{ params.dataset }}.{{ p
           )
           OPTIONS (
               format = 'CSV',
-              uris = ['gs://{{ params.bucket }}/{{ params.gcs_object }}'],
+              uris = ['gs://{{ params.bucket }}/{{ params.gcs_object }}/{{ logical_date.strftime("%Y/%m") }}.csv'],
               skip_leading_rows = 1,
               ignore_unknown_values = TRUE
           );

@@ -23,7 +23,7 @@ CREATE OR REPLACE EXTERNAL TABLE `{{ params.project }}.{{ params.dataset }}.{{ p
           )
           OPTIONS (
               format = 'CSV',
-              uris = ['gs://{{ params.bucket }}/{{ params.gcs_object }}'],
+              uris = ['gs://{{ params.bucket }}/{{ params.gcs_object }}/{{ logical_date.strftime("%Y/%m") }}.csv'],
               skip_leading_rows = 1,
               ignore_unknown_values = TRUE
           );
