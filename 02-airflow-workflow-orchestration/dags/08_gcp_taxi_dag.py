@@ -132,14 +132,14 @@ def make_dag(TAXI_COLOUR, CONFIG):
                             },
                         )
                 
-        #cleanup = BashOperator(
-            #task_id="cleanup",
-            #bash_command="rm -f " + OUTPUT_FILE_TEMPLATE,
-            # trigger_rule="all_done",  # enable once failures are handled elsewhere —
-            # skips cleanup on failure by default, which keeps the file for inspection
-        #)
+        cleanup = BashOperator(
+            task_id="cleanup",
+            bash_command="rm -f " + OUTPUT_FILE_TEMPLATE,
+             #trigger_rule="all_done",  # enable once failures are handled elsewhere —
+             #skips cleanup on failure by default, which keeps the file for inspection
+        )
         
-        extract_task >> upload_task >> bq_external_table >> bq_staging_table >> bq_main_table >> bq_merge_task #>> cleanup
+        extract_task >> upload_task >> bq_external_table >> bq_staging_table >> bq_main_table >> bq_merge_task >> cleanup
 
     return local_workflow()
 
