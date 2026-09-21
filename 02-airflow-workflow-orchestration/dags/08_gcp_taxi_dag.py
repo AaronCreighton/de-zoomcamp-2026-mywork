@@ -99,6 +99,38 @@ def make_dag(TAXI_COLOUR, CONFIG):
                         "filename": TAXI_COLOUR + "_tripdata",
                     },
                 )
+        
+        bq_main_table = BigQueryInsertJobOperator(
+                                    task_id="bq_create_main_table",
+                                    gcp_conn_id=GCP_CONN_ID,
+                                    configuration={
+                                        "query": {
+                                            "query": "{% include 'sql/main_table_" + colour + "_bigquery.sql' %}",
+                                            "useLegacySql": False,
+                                        }
+                                    },
+                                    params={
+                                        "project": Variable.get("GCP_PROJECT"),
+                                        "dataset": Variable.get("GCP_DATASET"),
+                                        "table": TABLE_NAME,
+                                    },
+                                )
+        
+        bq_merge_task = BigQueryInsertJobOperator(
+                            task_id="bq_merge_staging_to_main",
+                            gcp_conn_id=GCP_CONN_ID,
+                            configuration={
+                                "query": {
+                                    "query": "{% include 'sql/merge_" + colour + "_bigquery.sql' %}",
+                                    "useLegacySql": False,
+                                }
+                            },
+                            params={
+                                "project": Variable.get("GCP_PROJECT"),
+                                "dataset": Variable.get("GCP_DATASET"),
+                                "table": TABLE_NAME,
+                            },
+                        )
                 
         #cleanup = BashOperator(
             #task_id="cleanup",
@@ -107,7 +139,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
             # skips cleanup on failure by default, which keeps the file for inspection
         #)
         
-        extract_task >> upload_task >> bq_external_table >> bq_staging_table #>> cleanup
+        extract_task >> upload_task >> bq_external_table >> bq_staging_table >> bq_main_table >> bq_merge_task #>> cleanup
 
     return local_workflow()
 
