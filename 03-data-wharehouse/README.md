@@ -1,5 +1,9 @@
 # Data Warehousing
 
+## Aaron's Notes
+
+This section is manly theory. The content from 2026 has been copied to record the info. If using BigQuery worth as review of the latest videos on the website, is recomended. 
+
 ## Units
 
 1. [Data Warehouse and BigQuery](01-data-warehouse-and-bigquery.md)
