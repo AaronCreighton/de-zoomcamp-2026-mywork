@@ -2,7 +2,7 @@
 
 ## Aarons Notes
 
-my local setup has some slight differences. See the main SETUP.md document for the differences. 
+my local setup has some slight differences. See the main SETUP.md document for the differences. The main difference is, creating the local folder and using uv for installing.
 
 
 ## instructions from the course;
