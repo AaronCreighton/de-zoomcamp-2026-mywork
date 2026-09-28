@@ -31,6 +31,15 @@ All data engineering work runs inside **Ubuntu via WSL2**. Windows is used only 
 | **uv** | Inside Ubuntu | Manages Python versions and isolated environments per project. Replaces pyenv + pip in one fast tool |
 | **Google Cloud CLI** | Inside Ubuntu | Authenticates and interacts with GCP services from the terminal |
 | **Terraform** | Inside Ubuntu | Provisions GCP infrastructure as code |
+| **Kestra** | Docker container | Workflow orchestrator. Declarative YAML flows, stored in its own metadata database |
+| **Airflow** | Docker containers | Workflow orchestrator. DAGs written in Python, read from files on disk |
+| **DuckDB** | Inside Ubuntu, via uv | Embedded analytical database — a file on disk, no server. Local target for dbt Core |
+| **dbt Core** | Inside Ubuntu, via uv | Transforms data with SQL models run against a warehouse. Installed with the `dbt-duckdb` adapter |
+| **dbt Cloud** | Browser | Hosted dbt, set up through its own wizard and connected to the git repo |
+
+---
+
+> Architectural choices — which orchestration tool(s), which operator type for tasks, and why — are recorded in `DESIGN_DECISIONS.md` rather than here. This file stays focused on installation and setup steps.
 
 ---
 
@@ -117,9 +126,27 @@ Confirm **"WSL: Ubuntu"** appears in the bottom left corner of VS Code.
 ### hide the directory in vs code
 
 ```bash
-echo 'PS1=">"' > ~/.bashrc
+echo 'PS1=">"' >> ~/.bashrc
 ```
 
+**Use `>>`, not `>`.** Both appear to work — the prompt changes either way — but `>` truncates `~/.bashrc` to zero and replaces the whole file with that one line. That silently removes:
+
+* Ubuntu's stock settings — `ll`/`la` aliases, `ls` and `grep` colour, history tuning
+* bash-completion, so tab-completing `git`, `docker` and `apt` stops working
+* anything appended by a later step, most importantly uv's PATH line from Step 6
+
+The failure is delayed and looks unrelated: re-running this command on an already-configured machine produces `Command 'uv' not found` the next time you open a terminal.
+
+If it has already been run with `>`, restore the stock file and re-append:
+
+```bash
+cat /etc/skel/.bashrc > ~/.bashrc
+echo 'PS1=">"' >> ~/.bashrc
+echo 'source $HOME/.local/bin/env' >> ~/.bashrc
+source ~/.bashrc
+```
+
+Order matters — stock file first, your lines after, so the last `PS1` assignment wins.
 
 ---
 
@@ -266,7 +293,7 @@ When prompted, enter the password: `root`
 ``` 
 uv add --dev jupyter
 
-ub run jupyter notebook
+uv run jupyter notebook
 ```
 
 ## 4. Connect to PostgreSQL in Python/Jupyter
@@ -318,7 +345,7 @@ docker run -it --rm \
 ```
 
 
-## 8. Add to docker
+## 7. Add to docker
 
 add ingrest_data to dockerfile & then build it. 
 
@@ -337,7 +364,7 @@ docker run -it --rm \
   --target-table=yellow_taxi_trips
 ```
 
-## 9. pgAdmin 
+## 8. pgAdmin 
 
 pgAdmin is UI instead of pgcli.
 
@@ -354,7 +381,7 @@ docker run -it \
 ```
 note the addition of network and name parameters.
 
-## 10. create docker-compose.yaml
+## 9. create docker-compose.yaml
 
 see the file for details
 
@@ -376,13 +403,13 @@ to execute the compose file
 docker compose up
 ```
 
-## 11 Cleanup
+## 10. Cleanup
 
 
 Stop All Running Containers
 
 ```bash
-docker-compose down
+docker compose down
 ```
 
 Remove Specific Containers
@@ -541,7 +568,325 @@ docker compose up -d
 -d stands for detached mode — runs the containers in the background so your terminal is free to use.
 Without -d the container logs stream directly to your terminal and you can't use it for anything else until you stop the containers with Ctrl+C.
 
+---
+
+# Airflow
+
+Airflow is set up as its own compose project in a separate folder, so it can run alongside Kestra rather than replacing it.
+
+Unlike Kestra, which stores flows in its metadata database, Airflow reads DAGs as Python files bind-mounted from the host. That is why the directories below must exist before the containers start.
+
+## 1. create the project directories
+
+```bash
+mkdir -p ~/projects/de-zoomcamp-2026-mywork/03-airflow-workflow-orchestration
+cd ~/projects/de-zoomcamp-2026-mywork/03-airflow-workflow-orchestration
+
+mkdir -p ./dags ./logs ./plugins ./config
+echo -e "AIRFLOW_UID=$(id -u)" > .env
+```
+
+Without AIRFLOW_UID, files that the containers write into dags, logs, config and plugins are owned by root and cannot be edited from VS Code without sudo.
+
+The `.env` here is read by Docker Compose, not by the shell. VS Code's Python extension may offer to inject it into terminals — decline, it is not needed.
+
+## 2. add a .gitignore
+
+Airflow writes continuously into `logs/`, which should never be committed. The Airflow project publishes its own at https://github.com/apache/airflow/blob/main/.gitignore — that file is aimed at developing Airflow itself, so most of it is irrelevant here, but it is a reasonable starting point.
+
+The entries that actually matter for this project:
+
+```gitignore
+logs/
+plugins/
+.env
+airflow.cfg
+airflow.db
+__pycache__/
+```
+
+`.env` holds only `AIRFLOW_UID` so far, but it is the file that would hold credentials later.
+
+## 3. fetch the official docker-compose file
+
+```bash
+curl -LfO 'https://airflow.apache.org/docs/apache-airflow/3.3.1/docker-compose.yaml'
+```
+
+Pin the version in the URL rather than using `stable`, so a future major release does not silently change what is downloaded.
+
+The official file is used rather than the Astro CLI. Astronomer themselves recommend Docker Compose for open-source local development, and the compose file makes the architecture visible — scheduler, api-server, dag-processor, worker, triggerer, redis and its own postgres are all separate services.
+
+## 4. change the published port to 8090
+
+Kestra already uses 8080. Edit the single ports line for the apiserver:
+
+```yaml
+      - "8090:8080"
+```
+
+Do NOT find-and-replace 8080 across the file. Only the host side of the published mapping changes. Every other 8080 is container-side, where the app really does listen on 8080:
+
+* `AIRFLOW__CORE__EXECUTION_API_SERVER_URL` — how scheduler and workers reach the api-server over the internal docker network
+* the healthcheck `curl` — runs inside the container
+
+Rewriting those points them at a port nothing is listening on, and containers never report healthy.
+
+Verify only the mapping changed:
+
+```bash
+grep -n "8080\|8090" docker-compose.yaml
+```
+
+## 5. initialise
+
+Before initialising, turn off the bundled example DAGs — set this in `docker-compose.yaml`:
+
+```yaml
+AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+```
+
+Then:
+
+```bash
+docker compose up airflow-init
+```
+
+Runs the database migrations and creates the admin user. It is a one-shot service, so it exits rather than staying up. Look for `airflow-init-1 exited with code 0`.
+
+Default login is `airflow` / `airflow`.
+
+Airflow 3 does this natively. The 2022 course used a custom `entrypoint.sh` for it, which is no longer needed.
+
+If the examples were already loaded, flipping the flag alone may leave them as stale records. To clear them out completely:
+
+```bash
+docker compose down --volumes
+# set AIRFLOW__CORE__LOAD_EXAMPLES to 'false'
+docker compose up airflow-init
+docker compose up -d
+```
+
+`--volumes` wipes the metadata database, so only do this before there is any DAG history worth keeping.
+
+## 6. run
+
+```bash
+docker compose up -d
+docker ps
+```
+
+UI at http://localhost:8090
+
+## 7. add pgdatabase and pgadmin
+
+The Airflow compose file only brings up Airflow. Copy the `pgdatabase` and `pgadmin` services over from the Kestra compose file so this project has its own `ny_taxi` database, the same way the Kestra project does.
+
+Two changes when copying:
+
+* **Host ports must move.** Kestra's project already binds 5432 and 8085. Change the left-hand number only — the container side stays as it is.
+* **Repoint `depends_on`.** The Kestra version waits on `kestra`, which does not exist here. Point it at `airflow-apiserver` with `condition: service_healthy`.
+
+```yaml
+  pgdatabase:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: ny_taxi
+    ports:
+      - "5433:5432"
+    volumes:
+      - ny_taxi_postgres_data:/var/lib/postgresql
+    depends_on:
+      airflow-apiserver:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=root
+    ports:
+      - "8086:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+```
+
+Add to the `volumes:` block at the bottom of the file, alongside `postgres-db-volume`:
+
+```yaml
+  ny_taxi_postgres_data:
+  pgadmin_data:
+```
+
+> Why `pgdatabase` depends on the Airflow api-server's health, and the trade-offs of that choice, are recorded in `DESIGN_DECISIONS.md` under Airflow.
+
+To start the database without waiting on the rest of the Airflow stack:
+
+```bash
+docker compose up -d --no-deps pgdatabase
+```
+
+Each compose project gets its own prefixed volume, so this `ny_taxi` is a separate, empty database from Kestra's. It needs its own ingestion run. For comparing the two orchestrators that is an advantage — neither can contaminate the other's results.
+
+## port allocation
+
+Host ports are machine-wide, so they collide across compose projects even though each file only mentions its own. These values let both stacks run at the same time.
+
+| Host port | Service | Project |
+|------|---------|---------|
+| 5432 | pgdatabase (ny_taxi) | Kestra |
+| 5433 | pgdatabase (ny_taxi) | Airflow |
+| 8080, 8081 | Kestra | Kestra |
+| 8085 | pgAdmin | Kestra |
+| 8086 | pgAdmin | Airflow |
+| 8090 | Airflow api-server | Airflow |
+
+Both metadata databases — Kestra's and Airflow's — are unpublished, so they never collide.
+
+**Container ports never change.** A mapping is `host:container`, and only the left side can clash. Inside its own container every Postgres still listens on 5432 and pgAdmin on 80. This is why:
+
+* A DAG connects to host `pgdatabase` on port **5432**, not 5433. Container-to-container traffic does not use the published port.
+* pgcli from Ubuntu connects on **5433**, because that connection starts on the host.
+
+## testing DAGs
+
+To manually run one interval of a DAG and confirm it works before relying on the schedule or a full backfill:
+
+1. Open the DAG in the UI and use **Trigger DAG**
+2. Type the logical date directly into the date field rather than using the calendar picker — the picker defaults to now and is fiddly to move back to an arbitrary past month
+3. Trigger, and check the run's logical date matches what was typed
+4. Repeat with a different logical date to test another month
+
+`start_date` and `logical_date` must be timezone-aware (`pendulum.datetime(..., tz="UTC")`, not plain `datetime(...)`) or the scheduler can silently anchor runs to the current date instead of the DAG's intended range — this was the cause the first time a run showed today's date instead of the expected historical one.
+
+A manual trigger with no logical date specified always defaults to now. This is expected behaviour, not a bug — it is not the same thing as catchup or backfill, neither of which happen automatically. Once individual months have been confirmed this way, backfill is the tool for populating the full historical range in one action rather than triggering each month by hand.
+
+## 8. Google provider and GCP connection
+
+Add `apache-airflow-providers-google` to `requirements.txt`, then switch the compose file to the custom image — uncomment `build: .`, comment out `image:`. Use `pip` in the Dockerfile, not `uv`.
+
+Mount a `keys/` folder into the containers and put the service account JSON there. Add `keys/` to `.gitignore`.
+
+Set `AIRFLOW__CORE__TEST_CONNECTION: 'Enabled'` so the Test button works.
+
+Create a Google Cloud connection with the key path and project ID, then test it.
+
+Put bucket, dataset and project in `.env` as `AIRFLOW_VAR_*`.
+
+Gotchas are recorded in `AIRFLOW_DAG_MIGRATION.md` under G1.
+
+---
+
+# DuckDB
+
+```bash
+uv add duckdb
+```
+
+---
+
+# dbt
+
+## dbt Cloud
+
+Course instructions live at `04-dbt-analytics-engineering/setup/cloud_setup.md`. This section holds only what differs from or is missing there.
+
+- Create the project directory `04-dbt-analytics-engineering` and a subfolder for the actual dbt project, with a `README.md` in each
+- The course video is old and doesn't show a project setup wizard at all, so the actual wizard steps — including connecting to the git repo and setting the project subdirectory — aren't covered there
+- **Observation, not a fixed step:** the subdirectory field wasn't obviously labelled — it was tucked under whatever field is titled "Project Name" rather than something clearly called "Subdirectory" or "Project path". Flagging this as something to look for rather than a numbered instruction, since the dbt Cloud free tier only allows one project, so this can't be reproduced or re-verified, and the wizard's layout can change without notice.
+
+## dbt Core
+
+Course instructions at `04-dbt-analytics-engineering/setup/local_setup.md`. The steps below cover what the course video shows but doesn't document — mainly the project layout, which the video mentions changing but never actually does.
+
+Target layout — one level, with the Python environment and the dbt project files side by side, matching what dbt Cloud reads from its configured subdirectory:
+
+```
+04-dbt-analytics-engineering/
+└── <project>/
+    ├── .venv/
+    ├── pyproject.toml
+    ├── dbt_project.yml
+    ├── models/
+    └── ...
+```
+
+**1. Create the project folder.** This is the dbt project root, and where dbt Cloud's subdirectory setting should point.
+
+```bash
+mkdir -p ~/projects/de-zoomcamp-2026-mywork/04-dbt-analytics-engineering/<project>
+cd ~/projects/de-zoomcamp-2026-mywork/04-dbt-analytics-engineering/<project>
+```
+
+**2. Create the Python environment inside it.** `--bare` creates only `pyproject.toml`, avoiding a `README.md` that would collide with dbt's in step 5.
+
+```bash
+uv init --bare
+uv python pin 3.13
+uv add dbt-duckdb
+```
+
+**3. Create `profiles.yml`.** dbt looks in `~/.dbt/profiles.yml` by default, not the project folder.
+
+```bash
+mkdir -p ~/.dbt
+code ~/.dbt/profiles.yml
+```
+
+Paste in the profile and save. `code` creates the file on save but won't create the folder, hence `mkdir -p` first. `nano ~/.dbt/profiles.yml` works too (`Ctrl+O`, `Enter`, `Ctrl+X` to save and exit). The course video uses `open`, which is macOS-only and errors on a missing file.
+
+**4. Run `dbt init` inside the project folder**, using the profile name as the project name so the two match. `--skip-profile-setup` stops it prompting for or overwriting the profile from step 3.
+
+```bash
+uv run dbt init <profile-name> --skip-profile-setup
+```
+
+**5. Move the files up.** `dbt init` creates a subfolder; move its contents into the project folder so everything sits at one level, then delete the empty subfolder. Either move them manually in VS Code's explorer, or from the terminal:
+
+```bash
+shopt -s dotglob
+mv <profile-name>/* .
+rmdir <profile-name>
+shopt -u dotglob
+```
+
+`dotglob` makes `*` include dotfiles — `dbt init` creates a `.gitignore`, and without it `rmdir` fails on a folder that looks empty.
+
+**6. Check the profile names match** — `profile:` in `dbt_project.yml` against the top-level key in `profiles.yml`.
+
+```bash
+grep profile dbt_project.yml
+cat ~/.dbt/profiles.yml
+```
+
+**7. Confirm dbt can connect.**
+
+```bash
+uv run dbt debug
+```
+
+To keep the profile inside the project instead — reasonable for DuckDB since there's no credential to protect from git, unlike a warehouse password — use `--profiles-dir <path>` on every dbt command, or set `DBT_PROFILES_DIR` so it's automatic.
+
+**dbt Power User (AltimateAI):** the extension needs pointing at an environment where `dbt` is importable, and prompts to install dbt Core if it can't find one. Detecting from the terminal picks up the project venv, but the setting it writes is:
+
+```json
+// .vscode/settings.json
+{
+    "dbt.dbtPythonPathOverride": "/home/aaron/projects/.../local_duckdb_taxi/.venv/bin/python3"
+}
+```
+
+An absolute path with no variable in it, so it breaks silently if the venv moves. Worth re-checking after any project restructure.
+
+`.vscode/settings.json` is workspace-scoped — it has to sit at whatever folder is opened as the workspace root. And the path is machine-specific, so it isn't meaningfully shareable if `.vscode/` is committed.
+
+---
+
 ## Still To Install
+
+
 
 | Tool | Status |
 |------|--------|
@@ -557,6 +902,10 @@ Without -d the container logs stream directly to your terminal and you can't use
 | Postgres (via Docker) | ✅ Done |
 | pgAdmin (via Docker) | ✅ Done |
 | Kestra (via Docker) | ✅ Done |
+| Airflow (via Docker) | ✅ Done |
+| dbt Cloud | ✅ Done |
+| DuckDB | ⬜ Todo |
+| dbt Core | ⬜ Todo |
 | pgcli | ✅ Done |
 | JupyterLab | ✅ Done |
 | Google Cloud CLI | ⬜ Todo |
