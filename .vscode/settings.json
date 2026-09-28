@@ -1,0 +1,4 @@
+// .vscode/settings.json
+{
+    "dbt.dbtPythonPathOverride": "/home/aaron/projects/de-zoomcamp-2026-mywork/04-dbt-analytics-engineering/taxi_rides_ny/.venv/bin/python3"
+}
