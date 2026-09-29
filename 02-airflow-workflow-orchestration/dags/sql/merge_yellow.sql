@@ -1,24 +1,25 @@
 CREATE TABLE IF NOT EXISTS {{ params.final_table }} (
-    unique_row_id          uuid PRIMARY KEY,
-    filename               text,
-    vendor_id              bigint,
-    tpep_pickup_datetime   timestamp,
-    tpep_dropoff_datetime  timestamp,
-    passenger_count        integer,
-    trip_distance          double precision,
-    ratecode_id            bigint,
-    store_and_fwd_flag     text,
-    pu_location_id         bigint,
-    do_location_id         bigint,
-    payment_type           integer,
-    fare_amount            double precision,
-    extra                  double precision,
-    mta_tax                double precision,
-    tip_amount             double precision,
-    tolls_amount           double precision,
-    improvement_surcharge  double precision,
-    total_amount           double precision,
-    congestion_surcharge   double precision
+  unique_row_id          uuid,
+  filename               text,
+  VendorID               text,
+  tpep_pickup_datetime   timestamp,
+  tpep_dropoff_datetime  timestamp,
+  passenger_count        integer,
+  trip_distance          double precision,
+  RatecodeID             text,
+  store_and_fwd_flag     text,
+  PULocationID           text,
+  DOLocationID           text,
+  payment_type           integer,
+  fare_amount            double precision,
+  extra                  double precision,
+  mta_tax                double precision,
+  tip_amount             double precision,
+  tolls_amount           double precision,
+  improvement_surcharge  double precision,
+  total_amount           double precision,
+  congestion_surcharge   double precision,
+    --ingestion_timestamp TIMESTAMP, (description = 'The timestamp when the record was ingested into the data warehouse.')
 );
 
 
@@ -45,9 +46,9 @@ USING {{params.staging_table}} AS S
 ON T.unique_row_id = S.unique_row_id
 WHEN NOT MATCHED THEN
   INSERT (
-    unique_row_id, filename, vendor_id, tpep_pickup_datetime, tpep_dropoff_datetime,
-    passenger_count, trip_distance, ratecode_id, store_and_fwd_flag, pu_location_id,
-    do_location_id, payment_type, fare_amount, extra, mta_tax, tip_amount, tolls_amount,
+    unique_row_id, filename, VendorID, tpep_pickup_datetime, tpep_dropoff_datetime,
+    passenger_count, trip_distance, RatecodeID, store_and_fwd_flag, PULocationID,
+    DOLocationID, payment_type, fare_amount, extra, mta_tax, tip_amount, tolls_amount,
     improvement_surcharge, total_amount, congestion_surcharge
   )
   VALUES (

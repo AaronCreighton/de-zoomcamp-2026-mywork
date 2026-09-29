@@ -61,10 +61,10 @@ def make_dag(TAXI_COLOUR):
             },
         )
     
-        transform_task = SQLExecuteQueryOperator(
-            task_id="transform_task",
+        merge_task = SQLExecuteQueryOperator(
+            task_id="merge",
             conn_id=PG_CONN_ID,
-            sql=f"sql/transform_"+TAXI_COLOUR+".sql",
+            sql=f"sql/merge_"+TAXI_COLOUR+".sql",
             params={"final_table": FINAL_TABLE,
                     "staging_table": STAGING_TABLE,
                     "taxi_colour": TAXI_COLOUR
@@ -80,7 +80,7 @@ def make_dag(TAXI_COLOUR):
             # skips cleanup on failure by default, which keeps the file for inspection
         )
         
-        extract_task >> load_task >> transform_task >> cleanup
+        extract_task >> load_task >> merge_task >> cleanup
 
 
     return local_workflow
