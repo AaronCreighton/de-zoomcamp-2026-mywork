@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS {{ params.final_table }} (
     total_amount           double precision,
     payment_type           integer,
     trip_type              integer,
-    congestion_surcharge   double precision
-    --ingestion_timestamp TIMESTAMP, (description = 'The timestamp when the record was ingested into the data warehouse.')
+    congestion_surcharge   double precision,
+    --ingestion_timestamp TIMESTAMP, (description = 'The timestamp when the record was ingested into the data warehouse. research timestamp type for postgres)')
 );
 
 

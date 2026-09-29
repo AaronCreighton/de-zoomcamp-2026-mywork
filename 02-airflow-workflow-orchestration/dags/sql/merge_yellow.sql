@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS {{ params.final_table }} (
   improvement_surcharge  double precision,
   total_amount           double precision,
   congestion_surcharge   double precision,
-    --ingestion_timestamp TIMESTAMP, (description = 'The timestamp when the record was ingested into the data warehouse.')
+    --ingestion_timestamp TIMESTAMP, (description = 'The timestamp when the record was ingested into the data warehouse. research timestamp type for postgres)')
 );
 
 
