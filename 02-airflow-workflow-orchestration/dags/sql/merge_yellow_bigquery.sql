@@ -13,9 +13,9 @@ MERGE INTO `{{params.project}}.{{ params.dataset }}.{{params.table}}` AS T
     ON T.unique_row_id = S.unique_row_id
     WHEN NOT MATCHED THEN
     INSERT (
-        unique_row_id, filename, vendor_id, tpep_pickup_datetime, tpep_dropoff_datetime,
-        passenger_count, trip_distance, ratecode_id, store_and_fwd_flag, pu_location_id,
-        do_location_id, payment_type, fare_amount, extra, mta_tax, tip_amount, tolls_amount,
+        unique_row_id, filename, VendorID, tpep_pickup_datetime, tpep_dropoff_datetime,
+        passenger_count, trip_distance, RatecodeID, store_and_fwd_flag, PULocationID,
+        DOLocationID, payment_type, fare_amount, extra, mta_tax, tip_amount, tolls_amount,
         improvement_surcharge, total_amount, congestion_surcharge
     )
     VALUES (
