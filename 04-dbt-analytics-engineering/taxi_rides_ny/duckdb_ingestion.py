@@ -31,7 +31,7 @@ def download_and_convert_files(taxi_type):
             print(f"Converting {csv_gz_filename} to Parquet...")
             con = duckdb.connect()
             con.execute(f"""
-                COPY (SELECT * FROM read_csv_auto('{csv_gz_filepath}'))
+                COPY (SELECT * FROM read_csv_auto('{csv_gz_filepath}', all_varchar=true))
                 TO '{parquet_filepath}' (FORMAT PARQUET)
             """)
             con.close()
