@@ -1,0 +1,150 @@
+# Update the ingest_data_local DAG (2022) to match 04_postgres_taxi (2026) from Kestra.
+# Then refined the DAG, so the output in BigQuery is simlar to the
+
+
+
+import os
+from datetime import datetime
+
+
+from airflow.sdk import dag, Variable
+
+from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
+from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
+
+
+AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
+CHUNKSIZE=100000
+
+
+# GCP variables
+GCP_CONN_ID = "gcp_zoomcamp"
+
+
+# Schedule_interval="0 6 2 * *" means the DAG will run at 6:00 AM on the 2nd day of every month.
+# to update the schedule interval, you can use the cron expression from: https://crontab.guru/
+# kestra 05_postgres_taxi_scheduled.py has the following schedule intervals for green and yellow taxi data:
+DATASETS = {
+    "yellow": {"schedule": "0 10 1 * *"},
+    "green":  {"schedule": "0 9 1 * *"},
+}
+    
+def make_dag(TAXI_COLOUR, CONFIG):
+    URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/" + TAXI_COLOUR + "/"   
+    COlOUR_DATE =  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}"
+    URL_TEMPLATE = URL_PREFIX + "/" + COlOUR_DATE + ".csv.gz"
+    OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + COlOUR_DATE + ".csv"
+    
+    # GCP variables
+    GCS_FILE_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata"
+    
+    
+    # table names for external and staging tables in BigQuery
+    TABLE_NAME=  TAXI_COLOUR + '_tripdata' 
+    
+         
+    # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
+    @dag(
+        dag_id="08_gcp_taxi_"+TAXI_COLOUR+"_dag",
+        start_date=datetime(2019, 1, 1),
+        schedule=CONFIG.get("schedule"),
+    )
+    def local_workflow():   
+
+        extract_task = BashOperator(
+            task_id="extract_task",
+            bash_command="wget -qO- " + URL_TEMPLATE + " | gunzip > " + OUTPUT_FILE_TEMPLATE
+        )
+        
+        upload_task = LocalFilesystemToGCSOperator(
+            task_id="upload_to_gcs",
+            gcp_conn_id=GCP_CONN_ID,
+            src=OUTPUT_FILE_TEMPLATE,
+            dst=GCS_FILE_PREFIX + "/{{ logical_date.strftime(\"%Y/%m\") }}.csv",
+            bucket=Variable.get("GCP_BUCKET"),
+        )
+        
+        
+        bq_external_table = BigQueryInsertJobOperator(
+            task_id="bq_create_external_table",
+            gcp_conn_id=GCP_CONN_ID,
+            configuration={
+                "query": {
+                    "query": "{% include 'sql/external_table_" + colour + "_bigquery.sql' %}",
+                    "useLegacySql": False,
+                }
+            },
+            params={
+                "project": Variable.get("GCP_PROJECT"),
+                "dataset": Variable.get("GCP_DATASET"),
+                "table": TABLE_NAME,
+                "bucket": Variable.get("GCP_BUCKET"),
+                "gcs_object": GCS_FILE_PREFIX,
+            },
+        )
+        
+        bq_staging_table = BigQueryInsertJobOperator(
+                    task_id="bq_create_staging_table",
+                    gcp_conn_id=GCP_CONN_ID,
+                    configuration={
+                        "query": {
+                            "query": "{% include 'sql/staging_table_" + colour + "_bigquery.sql' %}",
+                            "useLegacySql": False,
+                        }
+                    },
+                    params={
+                        "project": Variable.get("GCP_PROJECT"),
+                        "dataset": Variable.get("GCP_DATASET"),
+                        "table": TABLE_NAME,
+                        "filename": TAXI_COLOUR + "_tripdata",
+                    },
+                )
+        
+        bq_main_table = BigQueryInsertJobOperator(
+                                    task_id="bq_create_main_table",
+                                    gcp_conn_id=GCP_CONN_ID,
+                                    configuration={
+                                        "query": {
+                                            "query": "{% include 'sql/main_table_" + colour + "_bigquery.sql' %}",
+                                            "useLegacySql": False,
+                                        }
+                                    },
+                                    params={
+                                        "project": Variable.get("GCP_PROJECT"),
+                                        "dataset": Variable.get("GCP_DATASET"),
+                                        "table": TABLE_NAME,
+                                    },
+                                )
+        
+        bq_merge_task = BigQueryInsertJobOperator(
+                            task_id="bq_merge_staging_to_main",
+                            gcp_conn_id=GCP_CONN_ID,
+                            configuration={
+                                "query": {
+                                    "query": "{% include 'sql/merge_" + colour + "_bigquery.sql' %}",
+                                    "useLegacySql": False,
+                                }
+                            },
+                            params={
+                                "project": Variable.get("GCP_PROJECT"),
+                                "dataset": Variable.get("GCP_DATASET"),
+                                "table": TABLE_NAME,
+                            },
+                        )
+                
+        cleanup = BashOperator(
+            task_id="cleanup",
+            bash_command="rm -f " + OUTPUT_FILE_TEMPLATE,
+             #trigger_rule="all_done",  # enable once failures are handled elsewhere —
+             #skips cleanup on failure by default, which keeps the file for inspection
+        )
+        
+        extract_task >> upload_task >> bq_external_table >> bq_staging_table >> bq_main_table >> bq_merge_task >> cleanup
+
+    return local_workflow()
+
+
+for colour, config in DATASETS.items():
+    generate_dag = make_dag(colour, config)
+    globals()["dag_" + colour] = generate_dag
