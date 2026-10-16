@@ -5,6 +5,7 @@
 
 import os
 from datetime import datetime
+from utils.config import COLOURS
 
 from airflow.sdk import dag, task, Variable
 
@@ -20,15 +21,8 @@ CHUNKSIZE=100000
 GCP_CONN_ID = "gcp_zoomcamp"
 
 
-# Schedule_interval="0 6 2 * *" means the DAG will run at 6:00 AM on the 2nd day of every month.
-# to update the schedule interval, you can use the cron expression from: https://crontab.guru/
-# kestra 05_postgres_taxi_scheduled.py has the following schedule intervals for green and yellow taxi data:
-DATASETS = {
-    "yellow": {"schedule": "0 10 1 * *"},
-    "green":  {"schedule": "0 9 1 * *"},
-}
     
-def make_dag(TAXI_COLOUR, CONFIG):
+def make_dag(TAXI_COLOUR):
     
     # GCP variables
     GCS_FILE_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata"
@@ -42,7 +36,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
     @dag(
         dag_id="dbt_gcp_taxi_"+TAXI_COLOUR+"_dag",
         start_date=datetime(2019, 1, 1),
-        schedule=CONFIG.get("schedule"),
+        catchup=False,
     )
     def local_workflow():   
 
@@ -129,6 +123,6 @@ def make_dag(TAXI_COLOUR, CONFIG):
     return local_workflow()
 
 
-for colour, config in DATASETS.items():
-    generate_dag = make_dag(colour, config)
+for colour  in COLOURS:
+    generate_dag = make_dag(colour)
     globals()["dag_" + colour] = generate_dag
