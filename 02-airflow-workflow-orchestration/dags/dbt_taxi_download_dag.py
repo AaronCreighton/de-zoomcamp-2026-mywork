@@ -6,7 +6,9 @@
 import os
 from datetime import datetime
 
-from airflow.sdk import dag, Asset  
+import requests
+from airflow.sdk import dag, task
+from utils.assets import TAXI_GZ
 
 from airflow.providers.standard.operators.bash import BashOperator
 
@@ -27,7 +29,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
     URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/" + TAXI_COLOUR + "/"   
     COlOUR_DATE =  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}"
     URL_TEMPLATE = URL_PREFIX + "/" + COlOUR_DATE + ".csv.gz"
-    OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + COlOUR_DATE + ".csv.gz"    
+    OUTPUT_FILE_TEMPLATE = DOWNLOAD_DIR + "/" + COlOUR_DATE + ".csv.gz"    
          
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
@@ -38,16 +40,22 @@ def make_dag(TAXI_COLOUR, CONFIG):
     )
     def local_workflow():   
 
-        extract_task = BashOperator(
-            task_id="extract_task",
-            bash_command="wget -qO- " + URL_TEMPLATE + " " + OUTPUT_FILE_TEMPLATE
-        )
+        asset = TAXI_GZ[TAXI_COLOUR]
+
+        @task(outlets=[asset])
+        def extract(url, dest, *, outlet_events):
+            with requests.get(url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(dest, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1 << 20):
+                        f.write(chunk)
+            outlet_events[asset].extra = {"path": dest}
         
         
         
+        extract(URL_TEMPLATE, OUTPUT_FILE_TEMPLATE)
         
-        
-        extract_task
+    return local_workflow()
 
 
 for colour, config in DATASETS.items():
