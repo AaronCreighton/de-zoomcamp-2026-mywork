@@ -6,17 +6,15 @@
 import os
 from datetime import datetime
 
+from airflow.sdk import dag, task, Variable
 
-from airflow.sdk import dag, Variable
-
-from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
+from airflow.providers.google.cloud.hooks.bigquery import BigQueryHook
+from airflow.exceptions import AirflowException
 
 
-AIRFLOW_HOME = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 CHUNKSIZE=100000
-
 
 # GCP variables
 GCP_CONN_ID = "gcp_zoomcamp"
@@ -31,10 +29,6 @@ DATASETS = {
 }
     
 def make_dag(TAXI_COLOUR, CONFIG):
-    URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/" + TAXI_COLOUR + "/"   
-    COlOUR_DATE =  TAXI_COLOUR + "_tripdata_{{ logical_date.strftime(\'%Y-%m\') }}"
-    URL_TEMPLATE = URL_PREFIX + "/" + COlOUR_DATE + ".csv.gz"
-    OUTPUT_FILE_TEMPLATE = AIRFLOW_HOME + "/" + COlOUR_DATE + ".csv"
     
     # GCP variables
     GCS_FILE_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata"
@@ -46,16 +40,13 @@ def make_dag(TAXI_COLOUR, CONFIG):
          
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
-        dag_id="08_gcp_taxi_"+TAXI_COLOUR+"_dag",
+        dag_id="dbt_gcp_taxi_"+TAXI_COLOUR+"_dag",
         start_date=datetime(2019, 1, 1),
         schedule=CONFIG.get("schedule"),
     )
     def local_workflow():   
 
-        extract_task = BashOperator(
-            task_id="extract_task",
-            bash_command="wget -qO- " + URL_TEMPLATE + " | gunzip > " + OUTPUT_FILE_TEMPLATE
-        )
+        
         
         upload_task = LocalFilesystemToGCSOperator(
             task_id="upload_to_gcs",
@@ -71,7 +62,7 @@ def make_dag(TAXI_COLOUR, CONFIG):
             gcp_conn_id=GCP_CONN_ID,
             configuration={
                 "query": {
-                    "query": "{% include 'sql/external_table_" + colour + "_bigquery.sql' %}",
+                    "query": "{% include 'sql/dbt_external_table_" + colour + "_bigquery.sql' %}",
                     "useLegacySql": False,
                 }
             },
@@ -84,29 +75,12 @@ def make_dag(TAXI_COLOUR, CONFIG):
             },
         )
         
-        bq_staging_table = BigQueryInsertJobOperator(
-                    task_id="bq_create_staging_table",
-                    gcp_conn_id=GCP_CONN_ID,
-                    configuration={
-                        "query": {
-                            "query": "{% include 'sql/staging_table_" + colour + "_bigquery.sql' %}",
-                            "useLegacySql": False,
-                        }
-                    },
-                    params={
-                        "project": Variable.get("GCP_PROJECT"),
-                        "dataset": Variable.get("GCP_DATASET"),
-                        "table": TABLE_NAME,
-                        "filename": TAXI_COLOUR + "_tripdata",
-                    },
-                )
-        
-        bq_main_table = BigQueryInsertJobOperator(
-                                    task_id="bq_create_main_table",
+        bq_target_table = BigQueryInsertJobOperator(
+                                    task_id="bq_create_target_table",
                                     gcp_conn_id=GCP_CONN_ID,
                                     configuration={
                                         "query": {
-                                            "query": "{% include 'sql/main_table_" + colour + "_bigquery.sql' %}",
+                                            "query": "{% include 'sql/dbt_target_table_" + colour + "_bigquery.sql' %}",
                                             "useLegacySql": False,
                                         }
                                     },
@@ -116,7 +90,22 @@ def make_dag(TAXI_COLOUR, CONFIG):
                                         "table": TABLE_NAME,
                                     },
                                 )
-        
+        @task
+        def match_columns(dataset, target_table, ext_table):
+            # Get the columns from the target table
+            bq_hook = BigQueryHook(gcp_conn_id=GCP_CONN_ID)
+            target_columns = bq_hook.get_schema(dataset_id=dataset, table_id=target_table)
+            ext_columns = bq_hook.get_schema(dataset_id=dataset, table_id=ext_table)
+
+            # Extract column names
+            target_column_names = {col['name'] for col in target_columns}
+            ext_column_names = {col['name'] for col in ext_columns}
+
+            # Check if all columns in the external table are present in the target table
+            missing_columns = ext_column_names - target_column_names
+            if missing_columns:
+                raise AirflowException(f"Missing columns in target table: {missing_columns}")
+
         bq_merge_task = BigQueryInsertJobOperator(
                             task_id="bq_merge_staging_to_main",
                             gcp_conn_id=GCP_CONN_ID,
@@ -133,14 +122,9 @@ def make_dag(TAXI_COLOUR, CONFIG):
                             },
                         )
                 
-        cleanup = BashOperator(
-            task_id="cleanup",
-            bash_command="rm -f " + OUTPUT_FILE_TEMPLATE,
-             #trigger_rule="all_done",  # enable once failures are handled elsewhere —
-             #skips cleanup on failure by default, which keeps the file for inspection
-        )
+    
         
-        extract_task >> upload_task >> bq_external_table >> bq_staging_table >> bq_main_table >> bq_merge_task >> cleanup
+        extract_task >> upload_task >> bq_external_table >>  bq_target_table >> bq_merge_task
 
     return local_workflow()
 
