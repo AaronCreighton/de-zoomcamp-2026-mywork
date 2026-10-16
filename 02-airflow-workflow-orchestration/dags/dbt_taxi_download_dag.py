@@ -9,21 +9,15 @@ from datetime import datetime
 import requests
 from airflow.sdk import dag, task
 from utils.assets import TAXI_GZ
+from utils.config import DATASETS
 
-from airflow.providers.standard.operators.bash import BashOperator
+
 
 
 DOWNLOAD_DIR = "/opt/airflow/taxi_download"
 
 
 
-# Schedule_interval="0 6 2 * *" means the DAG will run at 6:00 AM on the 2nd day of every month.
-# to update the schedule interval, you can use the cron expression from: https://crontab.guru/
-# kestra 05_postgres_taxi_scheduled.py has the following schedule intervals for green and yellow taxi data:
-DATASETS = {
-    "yellow": {"schedule": "0 10 1 * *"},
-    "green":  {"schedule": "0 9 1 * *"},
-}
     
 def make_dag(TAXI_COLOUR, CONFIG):
     URL_PREFIX = "https://github.com/DataTalksClub/nyc-tlc-data/releases/download/" + TAXI_COLOUR + "/"   
