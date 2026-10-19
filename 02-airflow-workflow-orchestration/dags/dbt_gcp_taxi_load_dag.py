@@ -3,9 +3,11 @@
 
 
 
-import os
+from calendar import month
+import csv, gzip, os, re
 from datetime import datetime
 from utils.config import COLOURS
+from utils.assets import TAXI_GZ
 
 from airflow.sdk import dag, task, Variable
 
@@ -24,31 +26,58 @@ GCP_CONN_ID = "gcp_zoomcamp"
     
 def make_dag(TAXI_COLOUR):
     
-    # GCP variables
-    GCS_FILE_PREFIX = "taxi/raw/" + TAXI_COLOUR + "_tripdata"
-    
-    
     # table names for external and staging tables in BigQuery
     TABLE_NAME=  TAXI_COLOUR + '_tripdata' 
+    
+    # GCP variables
+    GCS_FILE_PREFIX = "taxi/raw/" + TABLE_NAME
     
          
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
-        dag_id="dbt_gcp_taxi_"+TAXI_COLOUR+"_dag",
+        dag_id="dbt_gcp_taxi_upload_"+TAXI_COLOUR+"_dag",
         start_date=datetime(2019, 1, 1),
+        schedule=[TAXI_GZ[TAXI_COLOUR]],
         catchup=False,
     )
     def local_workflow():   
 
+        @task()
+        def file_downloaded(*, triggering_asset_events):
+            return [
+                e.extra["path"]
+                for events in triggering_asset_events.values()
+                for e in events
+            ]
         
-        
-        upload_task = LocalFilesystemToGCSOperator(
-            task_id="upload_to_gcs",
-            gcp_conn_id=GCP_CONN_ID,
-            src=OUTPUT_FILE_TEMPLATE,
-            dst=GCS_FILE_PREFIX + "/{{ logical_date.strftime(\"%Y/%m\") }}.csv",
-            bucket=Variable.get("GCP_BUCKET"),
-        )
+        @task
+        def get_file_info(src):
+            with gzip.open(src, "rt", newline="") as f:
+                names = next(csv.reader(f), None)
+            if not names:
+                raise ValueError(f"no header row in {src}")
+            
+            date = re.search(r"(\d{4})-(\d{2})", src)
+            return {
+                "path": src,
+                "year": date[1],
+                "month": date[2],
+                "names": names,
+            }
+            
+        file_info = get_file_info.expand(src=file_downloaded())
+
+            
+        upload_task = LocalFilesystemToGCSOperator.partial(
+                task_id="upload_to_gcs",
+                gcp_conn_id=GCP_CONN_ID,
+                bucket=Variable.get("GCP_BUCKET"),
+            ).expand_kwargs(
+                file_info.map(lambda t: {
+                    "src": t["path"],
+                    "dst": f"{GCS_FILE_PREFIX}/{t['year']}/{t['month']}.csv.gz",
+                })
+            )
         
         
         bq_external_table = BigQueryInsertJobOperator(
@@ -118,7 +147,8 @@ def make_dag(TAXI_COLOUR):
                 
     
         
-        extract_task >> upload_task >> bq_external_table >>  bq_target_table >> bq_merge_task
+        
+        upload_task >> bq_external_table >>  bq_target_table >> bq_merge_task
 
     return local_workflow()
 
