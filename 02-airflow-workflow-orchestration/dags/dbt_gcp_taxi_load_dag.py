@@ -4,10 +4,11 @@
 
 
 from calendar import month
-import csv, gzip, os, re
+import csv, gzip, re
 from datetime import datetime
 from utils.config import COLOURS
 from utils.assets import TAXI_GZ
+from utils.bigquery import build_bqt_ext_sql
 
 from airflow.sdk import dag, task, Variable
 
@@ -79,24 +80,28 @@ def make_dag(TAXI_COLOUR):
                 })
             )
         
+        bq_external_table = BigQueryInsertJobOperator.partial(
+                task_id="bq_create_external_table",
+                gcp_conn_id=GCP_CONN_ID,
+            ).expand_kwargs(
+                file_info.map(lambda t: {
+                    "configuration": {
+                        "query": {
+                            "query": build_bqt_ext_sql(
+                                t, 
+                                Variable.get("GCP_PROJECT"), 
+                                Variable.get("GCP_DATASET"), 
+                                Variable.get("GCP_BUCKET"),
+                                TABLE_NAME,
+                                 GCS_FILE_PREFIX
+                                ),
+                            "useLegacySql": False,
+                        }
+                    }
+                })
+            )
         
-        bq_external_table = BigQueryInsertJobOperator(
-            task_id="bq_create_external_table",
-            gcp_conn_id=GCP_CONN_ID,
-            configuration={
-                "query": {
-                    "query": "{% include 'sql/dbt_external_table_" + colour + "_bigquery.sql' %}",
-                    "useLegacySql": False,
-                }
-            },
-            params={
-                "project": Variable.get("GCP_PROJECT"),
-                "dataset": Variable.get("GCP_DATASET"),
-                "table": TABLE_NAME,
-                "bucket": Variable.get("GCP_BUCKET"),
-                "gcs_object": GCS_FILE_PREFIX,
-            },
-        )
+        
         
         bq_target_table = BigQueryInsertJobOperator(
                                     task_id="bq_create_target_table",
