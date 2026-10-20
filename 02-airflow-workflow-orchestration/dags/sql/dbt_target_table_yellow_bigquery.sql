@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS `{{params.project}}.{{ params.dataset }}.{{params.table}}`
     (
         filename STRING,     
-        ingestion_timestamp 
+        VendorID STRING, 
         tpep_pickup_datetime STRING,
         tpep_dropoff_datetime STRING, 
         passenger_count STRING,
