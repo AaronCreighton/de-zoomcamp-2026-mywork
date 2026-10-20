@@ -1,11 +1,11 @@
 CREATE TABLE IF NOT EXISTS `{{params.project}}.{{ params.dataset }}.{{params.table}}`
     (
         filename STRING,     
-        vendor_id STRING, 
+        ingestion_timestamp 
         tpep_pickup_datetime STRING,
         tpep_dropoff_datetime STRING, 
         passenger_count STRING,
-        ratecode_id STRING, 
+        RatecodeID STRING, 
         store_and_fwd_flag STRING, 
         PULocationID STRING, 
         DOLocationID STRING,

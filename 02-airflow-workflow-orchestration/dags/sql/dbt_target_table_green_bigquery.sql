@@ -1,6 +1,7 @@
 CREATE TABLE IF NOT EXISTS `{{params.project}}.{{ params.dataset }}.{{params.table}}`
     (
         filename STRING, 
+        VendorID STRING,
         lpep_pickup_datetime STRING, 
         lpep_dropoff_datetime STRING, 
         store_and_fwd_flag STRING, 
@@ -19,6 +20,7 @@ CREATE TABLE IF NOT EXISTS `{{params.project}}.{{ params.dataset }}.{{params.tab
         total_amount STRING, 
         payment_type STRING, 
         trip_type STRING,
+        congestion_surcharge STRING,
         ingestion_timestamp TIMESTAMP OPTIONS (description = 'The timestamp when the record was ingested into the data warehouse.')
     ) 
     PARTITION BY DATE(ingestion_timestamp)
