@@ -4,11 +4,11 @@
 
 
 from calendar import month
-import csv, gzip, re
+import csv, gzip, re, logging
 from datetime import datetime
 from utils.config import COLOURS
 from utils.assets import TAXI_GZ
-from utils.bigquery import build_bqt_ext_sql
+from utils.bigquery import build_bqt_ext_sql, build_insert_delete_sql
 
 from airflow.sdk import dag, task, Variable
 
@@ -33,6 +33,8 @@ def make_dag(TAXI_COLOUR):
     # GCP variables
     GCS_FILE_PREFIX = "taxi/raw/" + TABLE_NAME
     
+    # Variables added to target table in BiqQuery, also help with matching columns between source and target tables.
+    METADATA = ["filename", "ingestion_timestamp"]
          
     # newer Taskflow API, of Airflow Dag factory function, compared to postgres dag.
     @dag(
@@ -119,41 +121,46 @@ def make_dag(TAXI_COLOUR):
                                     },
                                 )
         @task
-        def match_columns(dataset, target_table, ext_table):
-            # Get the columns from the target table
-            bq_hook = BigQueryHook(gcp_conn_id=GCP_CONN_ID)
-            target_columns = bq_hook.get_schema(dataset_id=dataset, table_id=target_table)
-            ext_columns = bq_hook.get_schema(dataset_id=dataset, table_id=ext_table)
+        def match_columns(target):
+            hook = BigQueryHook(gcp_conn_id=GCP_CONN_ID)
+            contract = [
+                f["name"] for f in
+                hook.get_schema(dataset_id=Variable.get("GCP_DATASET"), table_id=TABLE_NAME)["fields"]
+            ]
 
-            # Extract column names
-            target_column_names = {col['name'] for col in target_columns}
-            ext_column_names = {col['name'] for col in ext_columns}
+            unexpected = [n for n in target["names"] if n not in contract]
+            if unexpected:
+                raise AirflowException(f"not in {TABLE_NAME}: {unexpected}")
 
-            # Check if all columns in the external table are present in the target table
-            missing_columns = ext_column_names - target_column_names
-            if missing_columns:
-                raise AirflowException(f"Missing columns in target table: {missing_columns}")
+            missing = [c for c in contract if c not in target["names"] + METADATA]
+            if missing:
+                logging.warning("absent from source, will be NULL: %s", missing)
 
-        bq_merge_task = BigQueryInsertJobOperator(
-                            task_id="bq_merge_staging_to_main",
-                            gcp_conn_id=GCP_CONN_ID,
-                            configuration={
-                                "query": {
-                                    "query": "{% include 'sql/merge_" + colour + "_bigquery.sql' %}",
-                                    "useLegacySql": False,
-                                }
-                            },
-                            params={
-                                "project": Variable.get("GCP_PROJECT"),
-                                "dataset": Variable.get("GCP_DATASET"),
-                                "table": TABLE_NAME,
-                            },
-                        )
-                
-    
+            return target
         
+        columns_checked = match_columns.expand(target=file_info)
         
-        upload_task >> bq_external_table >>  bq_target_table >> bq_merge_task
+        insert_delete_task = BigQueryInsertJobOperator.partial(
+                task_id="bq_insert_and_prune",
+                gcp_conn_id=GCP_CONN_ID,
+            ).expand_kwargs(
+                file_info.map(lambda t: {
+                    "configuration": {
+                        "query": {
+                            "query": build_insert_delete_sql(
+                                t, 
+                                Variable.get("GCP_PROJECT"), 
+                                Variable.get("GCP_DATASET"), 
+                                TABLE_NAME
+                                ),
+                            "useLegacySql": False,
+                        }
+                    }
+                })
+            )
+        
+        file_info >> upload_task >> bq_external_table >> insert_delete_task
+        bq_target_table >> columns_checked >> insert_delete_task
 
     return local_workflow()
 
