@@ -23,7 +23,7 @@ Before adding or editing an entry, check:
 - **Give the reason for the choice, not the reason it works.** Why this was picked over the alternatives, not why it functions.
 - **Name what the other situation uses instead.** If the decision is local-dev-only, say what production does.
 - **Every entry needs a revisit trigger and an action.** "Not really a revisit case" is filler — either find the real condition or cut the line.
-- **Pick the file by scope, not by subject.** This file holds the tools and the environment — anything binding every pipeline, whichever era. An era file holds what is specific to that era's pipelines, including its Airflow decisions, so an orchestration decision sits beside the data decision it serves. Inside an era file, use the narrowest group that is true. An entry whose scope isn't obvious from its file and group reads as a contradiction of one elsewhere — that is the failure this structure exists to prevent.
+- **Pick the file by scope, not by subject.** This file holds the tools and the environment — anything binding every pipeline, whichever era. An era file holds what is specific to that era's pipelines, including its Airflow decisions, so an orchestration decision sits beside the data decision it serves. Inside an era file, an entry goes under the driver that forced it, and states its own scope where that is narrower than the section. An entry whose scope can't be read off the page reads as a contradiction of one elsewhere — that is the failure this structure exists to prevent.
 - **An entry lives in one file only.** When a decision narrows or replaces one elsewhere, say so in both and name the file. Don't duplicate the entry, and don't delete the one it replaces if it still governs its own scope — the Postgres load still merges on a row hash.
 - **A statement with no alternatives weighed is a principle, not a decision.** It belongs in the Guiding Principles table below, with one example decision that follows from it. Forcing it into the entry shape invents options nobody considered and produces the filler revisit line the rule above forbids.
 - **Be concise.** Don't restate reasoning already given earlier in the same entry. If a paragraph explains rather than decides, cut it.
@@ -48,8 +48,8 @@ decoration and should be cut.
 | Credentials are declared, not scattered | Credentials are Connections; configuration is Variables |
 | Build for the general case, not for this dataset | dbt: 4.1 Where do the column names come from? |
 
-Decisions prefixed `dbt:` live in `DESIGN_DECISIONS_DBT.md`; a number means it is one of the
-numbered decisions under the driver section there. The last two are in this file.
+Decisions prefixed `dbt:` live in `DESIGN_DECISIONS_DBT.md`, where a number identifies a decision
+under one of its driver sections. The two unprefixed ones are in this file.
 
 The last one is the odd one out: it is a learning goal rather than an engineering property, and it is here because without it a reader finds defensive machinery that this dataset demonstrably does not need — a header read on every file whose header never changes, and a drift check against months measured as schema-uniform — and concludes it was waste.
 

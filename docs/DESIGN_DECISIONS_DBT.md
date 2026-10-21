@@ -9,9 +9,10 @@ These pipelines diverge from the earlier ones on purpose. Those decisions are in
 every DAG are in `DESIGN_DECISIONS_SETUP.md`, along with the authoring rules for all three files.
 
 Read it in order. **Premises** holds the two decisions everything else rests on. Each **driver**
-section then states what forced a group of decisions, maps them, and answers the ones the group
-turns on, numbered in the order they resolve; *What follows from tree A* holds the decisions that
-fall out of those answers. **Future** is what isn't decided yet.
+section then states what forced a group of decisions, maps them, and answers the ones the group turns
+on, numbered in the order they resolve. Tree A's downstream decisions are numerous enough to need
+their own section, *What follows from tree A*; tree B's are few and sit inside the entries they
+follow from, listed in its map. **Future** is what isn't decided yet.
 
 Every entry names what it follows from or what it leads to, and its scope where that isn't the whole
 section. Most follow the same shape: options considered, decision, reasoning, revisit trigger.
