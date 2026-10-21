@@ -1,13 +1,11 @@
-# Update the ingest_data_local DAG (2022) to match 04_postgres_taxi (2026) from Kestra.
-# Then refined the DAG, so the output in BigQuery is simlar to the
+# Changed the Airflow DAG from 08_gcp_taxi_upload_dag.py to meet the needs of DBT.
+# this holds the upload of the taxi data to GCP bucket, and then load into BigQuery.
+#this triggers off dbt_taxi_download_dag.py.
 
-
-
-from calendar import month
 import csv, gzip, re, logging
 from datetime import datetime
 from utils.config import COLOURS
-from utils.assets import TAXI_GZ
+from utils.assets import TAXI_GZ, BQ_LOADED
 from utils.bigquery import build_bqt_ext_sql, build_insert_delete_sql
 
 from airflow.sdk import dag, task, Variable
@@ -158,9 +156,18 @@ def make_dag(TAXI_COLOUR):
                     }
                 })
             )
+            
+        @task(outlets=[BQ_LOADED[colour]])
+        def file_uploaded(target, *, outlet_events):
+            outlet_events[BQ_LOADED[colour]].extra = {"path": target["path"]}
+            return target
+        
+        
         
         file_info >> upload_task >> bq_external_table >> insert_delete_task
         bq_target_table >> columns_checked >> insert_delete_task
+        
+        insert_delete_task >> file_uploaded(columns_checked)
 
     return local_workflow()
 

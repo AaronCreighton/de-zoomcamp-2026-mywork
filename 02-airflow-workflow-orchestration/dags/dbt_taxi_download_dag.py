@@ -1,5 +1,6 @@
-# Update the ingest_data_local DAG (2022) to match 04_postgres_taxi (2026) from Kestra.
-# Then refined the DAG, so the output in BigQuery is simlar to the
+# Changed the Airflow DAG from 08_gcp_taxi_upload_dag.py to meet the needs of DBT.
+# This holds the extraction or download of the taxi data from the github repo.
+
 
 
 
