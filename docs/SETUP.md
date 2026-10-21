@@ -39,7 +39,7 @@ All data engineering work runs inside **Ubuntu via WSL2**. Windows is used only 
 
 ---
 
-> Architectural choices — which orchestration tool(s), which operator type for tasks, and why — are recorded in `DESIGN_DECISIONS.md` rather than here. This file stays focused on installation and setup steps.
+> Architectural choices are recorded in the design-decision files rather than here, and this file stays focused on installation and setup steps. Tools and environment are in `DESIGN_DECISIONS_SETUP.md` (*Orchestration tool: Kestra and Airflow, both*); per-pipeline choices such as operator type are in `DESIGN_DECISIONS_ORCHESTRATION.md` and `DESIGN_DECISIONS_DBT.md`, one file per pipeline era.
 
 ---
 
@@ -555,6 +555,52 @@ they also have an example of AWS terraform
 
 https://github.com/DataTalksClub/data-engineering-zoomcamp/tree/main/01-docker-terraform/terraform/terraform/terraform_with_variable_AWS
 
+---
+
+# Google Cloud CLI
+
+Not required by the course — it queries BigQuery from the terminal instead of the web console. Useful when the console is slow or unreachable, and for checking what a pipeline actually loaded without leaving VS Code.
+
+## 1. install
+
+```bash
+sudo apt install apt-transport-https ca-certificates gnupg curl -y
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg
+echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list
+sudo apt update && sudo apt install google-cloud-cli -y
+```
+
+`bq` ships with it — no separate install.
+
+## 2. authenticate
+
+`gcloud init` and `gcloud auth login` both open a browser, which is awkward from WSL. Use the service account key already created in Terraform step 2 instead:
+
+```bash
+gcloud auth activate-service-account --key-file=keys/creds.json
+gcloud config set project <project-id>
+```
+
+Run from the folder holding the key, or give the full path. This writes to `~/.config/gcloud/`, so it persists across terminal sessions and is independent of `GOOGLE_APPLICATION_CREDENTIALS`.
+
+## 3. verify
+
+```bash
+gcloud config list
+bq ls <dataset>
+```
+
+## querying
+
+`bq query` defaults to legacy SQL, so the flag is needed on every call:
+
+```bash
+bq query --use_legacy_sql=false 'SELECT filename, COUNT(*) AS n FROM <dataset>.yellow_tripdata GROUP BY filename ORDER BY filename'
+```
+
+Grouping by `filename` is the quickest check that a backfill actually landed — one row per source file loaded.
+
+---
 
 # Kestra
 
@@ -720,7 +766,7 @@ Add to the `volumes:` block at the bottom of the file, alongside `postgres-db-vo
   pgadmin_data:
 ```
 
-> Why `pgdatabase` depends on the Airflow api-server's health, and the trade-offs of that choice, are recorded in `DESIGN_DECISIONS.md` under Airflow.
+> Why `pgdatabase` depends on the Airflow api-server's health, and the trade-offs of that choice, are recorded in `DESIGN_DECISIONS_SETUP.md` under Airflow.
 
 To start the database without waiting on the rest of the Airflow stack:
 
@@ -904,11 +950,11 @@ An absolute path with no variable in it, so it breaks silently if the venv moves
 | Kestra (via Docker) | ✅ Done |
 | Airflow (via Docker) | ✅ Done |
 | dbt Cloud | ✅ Done |
-| DuckDB | ⬜ Todo |
-| dbt Core | ⬜ Todo |
+| DuckDB | ✅ Done |
+| dbt Core | ✅ Done |
 | pgcli | ✅ Done |
 | JupyterLab | ✅ Done |
-| Google Cloud CLI | ⬜ Todo |
+| Google Cloud CLI | ✅ Done |
 
 ---
 
