@@ -167,7 +167,7 @@ def make_dag(TAXI_COLOUR):
         file_info >> upload_task >> bq_external_table >> insert_delete_task
         bq_target_table >> columns_checked >> insert_delete_task
         
-        insert_delete_task >> file_uploaded(columns_checked)
+        insert_delete_task >> file_uploaded.expand(target=columns_checked)
 
     return local_workflow()
 
