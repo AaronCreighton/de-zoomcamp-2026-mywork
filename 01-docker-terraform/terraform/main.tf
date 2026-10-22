@@ -27,6 +27,17 @@ resource "google_storage_bucket" "demo-bucket" {
       type = "AbortIncompleteMultipartUpload"
     }
   }
+
+  lifecycle_rule {
+    condition {
+      age            = 30
+      matches_prefix = ["taxi/raw/"]
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
 }
 
 resource "google_bigquery_dataset" "demo_dataset" {
