@@ -37,7 +37,7 @@ def make_dag(TAXI_COLOUR):
 
         
         @task
-        def delete_loaded(*, triggering_asset_events):
+        def file_loaded(*, triggering_asset_events):
             per_asset = []
             for asset, events in triggering_asset_events.items():
                 logging.warning("%s: extras=%s", asset.name, [e.extra for e in events])
@@ -57,8 +57,11 @@ def make_dag(TAXI_COLOUR):
                     f"expected {len(LOADED)} consumers, got {len(per_asset)}"
                 )
                 
+            return sorted(set.intersection(*per_asset))
+        
+        @task
+        def remove_files(candidates):
             
-            candidates = set.intersection(*per_asset)
             if not candidates:
                 logging.info("no month loaded by every consumer yet")
             
@@ -68,10 +71,10 @@ def make_dag(TAXI_COLOUR):
                     os.remove(path)
                     removed.append(path)
                 except FileNotFoundError:
-                    pass
+                    logging.info("already gone %s", path)
             return removed
         
-        delete_loaded()
+        remove_files(file_loaded())
         
         
         
