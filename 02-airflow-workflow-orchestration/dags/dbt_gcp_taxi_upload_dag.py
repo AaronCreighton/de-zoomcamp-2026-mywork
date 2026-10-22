@@ -16,8 +16,6 @@ from airflow.providers.google.cloud.hooks.bigquery import BigQueryHook
 from airflow.exceptions import AirflowException
 
 
-CHUNKSIZE=100000
-
 # GCP variables
 GCP_CONN_ID = "gcp_zoomcamp"
 
@@ -134,7 +132,7 @@ def make_dag(TAXI_COLOUR):
             if missing:
                 logging.warning("absent from source, will be NULL: %s", missing)
 
-            return target
+            
         
         columns_checked = match_columns.expand(target=file_info)
         
@@ -156,18 +154,20 @@ def make_dag(TAXI_COLOUR):
                     }
                 })
             )
+        
+        asset = BQ_LOADED[TAXI_COLOUR]
             
-        @task(outlets=[BQ_LOADED[colour]])
-        def file_uploaded(target, *, outlet_events):
-            outlet_events[BQ_LOADED[colour]].extra = {"path": target["path"]}
-            return target
+        @task(outlets=[asset])
+        def file_uploaded(targets, *, outlet_events):
+            outlet_events[asset].extra = {"paths": [t["path"] for t in targets]}
+            
         
         
         
         file_info >> upload_task >> bq_external_table >> insert_delete_task
         bq_target_table >> columns_checked >> insert_delete_task
         
-        insert_delete_task >> file_uploaded.expand(target=columns_checked)
+        insert_delete_task >> file_uploaded(targets=file_info)
 
     return local_workflow()
 
