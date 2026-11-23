@@ -6,7 +6,7 @@ import csv, gzip, re, logging
 from datetime import datetime
 from utils.config import COLOURS
 from utils.assets import TAXI_GZ, BQ_LOADED
-from utils.bigquery import build_bqt_ext_sql, build_insert_delete_sql
+from utils.bigquery import build_bqt_ext_sql, build_insert_delete_sql, ext_table_name
 
 from airflow.sdk import dag, task, Variable
 
@@ -14,6 +14,7 @@ from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesyste
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 from airflow.providers.google.cloud.hooks.bigquery import BigQueryHook
 from airflow.exceptions import AirflowException
+from airflow.providers.google.cloud.operators.bigquery import BigQueryDeleteTableOperator
 
 
 # GCP variables
@@ -161,13 +162,23 @@ def make_dag(TAXI_COLOUR):
         def file_uploaded(targets, *, outlet_events):
             outlet_events[asset].extra = {"paths": [t["path"] for t in targets]}
             
-        
+       
+        drop_external_table = BigQueryDeleteTableOperator.partial(
+                task_id="bq_drop_external_table",
+                gcp_conn_id=GCP_CONN_ID,
+                ignore_if_missing=True,
+            ).expand_kwargs(
+                file_info.map(lambda t: {
+                    "deletion_dataset_table":
+                        f"{Variable.get('GCP_PROJECT')}.{Variable.get('GCP_DATASET')}.{ext_table_name(t, TABLE_NAME)}",
+                })
+            ) 
         
         
         file_info >> upload_task >> bq_external_table >> insert_delete_task
         bq_target_table >> columns_checked >> insert_delete_task
         
-        insert_delete_task >> file_uploaded(targets=file_info)
+        insert_delete_task >> file_uploaded(targets=file_info) >> drop_external_table
 
     return local_workflow()
 

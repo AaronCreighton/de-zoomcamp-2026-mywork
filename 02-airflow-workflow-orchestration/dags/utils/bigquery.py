@@ -1,6 +1,11 @@
 import os
 
 
+def ext_table_name(target, table_base):
+    return f"{table_base}_{target['year']}_{target['month']}_ext"
+  
+  
+
 EXT_BQT_SQL = """\
 CREATE OR REPLACE EXTERNAL TABLE `{project}.{dataset}.{table}`
 (
@@ -19,7 +24,7 @@ def build_bqt_ext_sql(target, project, dataset, bucket, table_base, prefix):
     return EXT_BQT_SQL.format(
         project=project,
         dataset=dataset,
-        table=f"{table_base}_{target['year']}_{target['month']}_ext",
+        table=ext_table_name(target, table_base),
         columns=columns,
         uri= f"gs://{bucket}/{prefix}/{target['year']}/{target['month']}.csv.gz",
     )
@@ -49,7 +54,9 @@ def build_insert_delete_sql(target, project, dataset, table_base):
         project=project,
         dataset=dataset,
         table=table_base,
-        ext_table=f"{table_base}_{target['year']}_{target['month']}_ext",
+        ext_table=ext_table_name(target, table_base),
         columns=columns,
         filename=os.path.basename(target["path"]),
     )
+    
+    
